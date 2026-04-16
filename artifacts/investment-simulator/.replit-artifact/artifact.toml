@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Investment Simulator"
+version = "1.0.0"
+id = "artifacts/investment-simulator"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24881
+
+[services.development]
+run = "pnpm --filter @workspace/investment-simulator run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/investment-simulator", "run", "build" ]
+publicDir = "artifacts/investment-simulator/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24881"
+BASE_PATH = "/"

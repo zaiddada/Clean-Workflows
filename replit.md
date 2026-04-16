@@ -4,17 +4,26 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+The main user-facing app is **Investment Simulator**, a frontend-only learning simulation for beginner investors. It lets users practice buying and selling hardcoded stocks with virtual rupees, experience simulated market movement and dips, and receive simple feedback about panic selling and market timing.
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
 - **Node.js version**: 24
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
+- **Main app**: React + Vite (`artifacts/investment-simulator`)
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+
+## Artifacts
+
+- `artifacts/investment-simulator` — React/Vite web app served at `/`. Frontend-only MVP with no auth, no real APIs, no backend persistence, and no AI/n8n integration yet. Sell events are structured in client state for future AI feedback integration.
+- `artifacts/api-server` — shared Express API server at `/api`.
+- `artifacts/mockup-sandbox` — canvas/design preview sandbox at `/__mockup`.
 
 ## Key Commands
 

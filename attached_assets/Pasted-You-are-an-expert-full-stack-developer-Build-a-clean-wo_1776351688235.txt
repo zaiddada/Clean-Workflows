@@ -1,0 +1,246 @@
+You are an expert full-stack developer. Build a clean, working MVP web app called "Investment Simulator".
+
+This is NOT a generic finance app. It is a learning simulation tool designed for beginners (age 16–19) who want to learn investing by making mistakes and receiving feedback.
+
+--------------------------------------------------
+
+🔹 CORE PRODUCT GOAL
+
+The app should teach users:
+- Why panic selling is a mistake
+- How emotions affect investing decisions
+
+The app should NOT:
+- Give stock tips
+- Predict markets
+- Act like a trading platform
+
+It should feel simple, interactive, and beginner-friendly.
+
+--------------------------------------------------
+
+🔹 BUILD APPROACH (IMPORTANT)
+
+Follow this order STRICTLY:
+
+1. Build a simple working UI first
+2. Add portfolio logic
+3. Add interaction (buy/sell)
+4. Add simulated price changes
+5. Prepare system for AI feedback (no need to integrate AI yet)
+
+DO NOT overcomplicate.
+DO NOT add unnecessary features.
+
+--------------------------------------------------
+
+🔹 TECH STACK
+
+- Frontend: HTML, CSS, JavaScript
+- Backend: Node.js (simple server if needed)
+- Keep everything minimal and clean
+- No heavy frameworks unless necessary
+
+--------------------------------------------------
+
+🔹 STEP 1: BASIC UI
+
+Create a simple webpage with:
+
+1. App title:
+   "Investment Simulator"
+
+2. User balance:
+   Default = ₹100,000
+
+3. Stock list (hardcoded initially):
+   - Reliance (₹2500)
+   - TCS (₹3500)
+   - HDFC Bank (₹1500)
+
+4. For each stock:
+   - Show name
+   - Show price
+   - Buy button
+   - Sell button
+
+5. Section:
+   "Your Portfolio"
+   (initially empty)
+
+Keep UI clean and minimal.
+
+--------------------------------------------------
+
+🔹 STEP 2: PORTFOLIO SYSTEM
+
+Implement:
+
+- A balance variable (starts at ₹100,000)
+- A portfolio object to track:
+  - stock name
+  - quantity owned
+  - average buy price
+
+Update UI dynamically when:
+- User buys stock
+- User sells stock
+
+--------------------------------------------------
+
+🔹 STEP 3: BUY LOGIC
+
+When user clicks BUY:
+
+- Check if balance is enough
+- Deduct stock price from balance
+- Add stock to portfolio
+- Update UI
+
+If insufficient balance:
+- Show message: "Not enough balance"
+
+--------------------------------------------------
+
+🔹 STEP 4: SELL LOGIC
+
+When user clicks SELL:
+
+- Check if user owns the stock
+- Add money back to balance
+- Reduce stock quantity
+- Update UI
+
+Also calculate:
+- Profit or loss for that transaction
+
+Store:
+- buy price
+- sell price
+
+--------------------------------------------------
+
+🔹 STEP 5: SIMULATED PRICE MOVEMENT
+
+Add basic price fluctuation:
+
+- Every few seconds, randomly increase or decrease stock price
+- Small percentage change (±1% to ±5%)
+
+Update UI automatically
+
+Goal:
+User should feel market movement
+
+--------------------------------------------------
+
+🔹 STEP 6: EMOTIONAL TRIGGER (VERY IMPORTANT)
+
+Simulate a dip:
+
+- Occasionally drop stock price significantly (e.g. -10%)
+
+This creates:
+- Panic situation
+- Decision-making moment
+
+--------------------------------------------------
+
+🔹 STEP 7: FEEDBACK SYSTEM (RULE-BASED FOR NOW)
+
+When user sells:
+
+Detect:
+
+IF:
+- sell price < buy price
+
+THEN:
+Show message:
+"You sold at a loss. This is called panic selling. Many beginners do this during market dips."
+
+IF:
+- sell price > buy price
+
+THEN:
+Show message:
+"You made a profit. But timing the market consistently is very difficult."
+
+Keep language simple and human.
+
+--------------------------------------------------
+
+🔹 STEP 8: PREPARE FOR AI INTEGRATION
+
+Structure code so that:
+
+When SELL happens, create an object like:
+
+{
+  action: "SELL",
+  stock: "RELIANCE",
+  buy_price: X,
+  sell_price: Y,
+  profit_or_loss: Z
+}
+
+This will later be sent to an external system (n8n).
+
+DO NOT integrate n8n yet.
+Just structure the data cleanly.
+
+--------------------------------------------------
+
+🔹 STEP 9: UI IMPROVEMENTS (BASIC ONLY)
+
+- Show:
+  - Current balance
+  - Portfolio holdings
+  - Profit/loss per stock
+
+- Keep design simple:
+  - Clean layout
+  - Clear buttons
+  - No complex styling
+
+--------------------------------------------------
+
+🔹 STEP 10: IMPORTANT CONSTRAINTS
+
+- Do NOT add login/authentication
+- Do NOT add real APIs yet
+- Do NOT overdesign UI
+- Do NOT add too many stocks
+- Do NOT make it complex
+
+Focus on:
+- Interaction
+- Learning experience
+
+--------------------------------------------------
+
+🔹 FINAL OUTPUT EXPECTATION
+
+The app should:
+
+1. Let user buy/sell stocks
+2. Show balance updates
+3. Show portfolio changes
+4. Simulate price movement
+5. Trigger emotional decisions
+6. Give simple feedback after selling
+
+--------------------------------------------------
+
+🔹 QUALITY CHECK
+
+Before finishing, ensure:
+
+- No console errors
+- All buttons work
+- UI updates correctly
+- Logic is consistent
+
+--------------------------------------------------
+
+Build this as a clean, working MVP.
