@@ -159,18 +159,94 @@
       linear-gradient(135deg, hsl(var(--card)), hsl(var(--card) / 0.86));
   }
 
+  /* ─── News highlight animations ─────────────────────── */
+
   .news-highlight {
-    animation: news-pulse 1.1s ease-out;
+    animation: news-pulse 1.4s ease-out;
   }
 
+  .news-breaking {
+    animation: news-breaking-pulse 1.8s ease-out;
+    border-color: hsl(var(--destructive) / 0.5) !important;
+  }
+
+  .news-flash {
+    animation: news-flash-pulse 1.2s ease-out;
+    border-color: hsl(var(--warning) / 0.5) !important;
+  }
+
+  .news-slide-in {
+    animation: news-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* ─── Price flash animations ────────────────────────── */
+
   .price-flash-up {
-    animation: price-up 0.9s ease-out;
+    animation: price-up 1.1s ease-out;
   }
 
   .price-flash-down {
-    animation: price-down 0.9s ease-out;
+    animation: price-down 1.1s ease-out;
+  }
+
+  /* ─── Market alert animations ───────────────────────── */
+
+  .alert-pulse {
+    animation: alert-pulse 2s ease-in-out infinite;
+  }
+
+  .alert-urgent {
+    animation: alert-urgent 0.8s ease-out, alert-glow 2.5s ease-in-out infinite 0.8s;
+  }
+
+  /* ─── Sentiment indicator ───────────────────────────── */
+
+  .sentiment-dot {
+    animation: sentiment-blink 2s ease-in-out infinite;
+  }
+
+  /* ─── Counterfactual card highlight ─────────────────── */
+
+  .cf-card {
+    animation: cf-reveal 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* ─── Price ticker scroll ───────────────────────────── */
+
+  .ticker-scroll {
+    animation: ticker-scroll 30s linear infinite;
+  }
+
+  /* ─── Live dot ──────────────────────────────────────── */
+
+  .live-dot {
+    animation: live-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ─── Stat card hover ───────────────────────────────── */
+
+  .stat-card-hover {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  }
+
+  .stat-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px hsl(var(--primary) / 0.08);
+  }
+
+  /* ─── Stock card transition ─────────────────────────── */
+
+  .stock-card {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .stock-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px hsl(var(--primary) / 0.12);
   }
 }
+
+/* ─── Keyframes ─────────────────────────────────────────── */
 
 @keyframes news-pulse {
   0% {
@@ -183,20 +259,142 @@
   }
 }
 
+@keyframes news-breaking-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.4), 0 0 20px hsl(var(--destructive) / 0.2);
+    border-color: hsl(var(--destructive) / 0.65);
+    background: hsl(var(--destructive) / 0.08);
+  }
+  40% {
+    box-shadow: 0 0 0 8px hsl(var(--destructive) / 0.1), 0 0 10px hsl(var(--destructive) / 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 18px hsl(var(--destructive) / 0), 0 0 0 transparent;
+    border-color: hsl(var(--border));
+    background: transparent;
+  }
+}
+
+@keyframes news-flash-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--warning) / 0.35);
+    border-color: hsl(var(--warning) / 0.55);
+    background: hsl(var(--warning) / 0.06);
+  }
+  100% {
+    box-shadow: 0 0 0 12px hsl(var(--warning) / 0);
+    border-color: hsl(var(--border));
+    background: transparent;
+  }
+}
+
+@keyframes news-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
 @keyframes price-up {
   0% {
-    background: hsl(var(--success) / 0.22);
+    background: hsl(var(--success) / 0.28);
+    box-shadow: inset 0 0 0 1px hsl(var(--success) / 0.3);
+  }
+  50% {
+    background: hsl(var(--success) / 0.12);
   }
   100% {
     background: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
   }
 }
 
 @keyframes price-down {
   0% {
-    background: hsl(var(--destructive) / 0.22);
+    background: hsl(var(--destructive) / 0.28);
+    box-shadow: inset 0 0 0 1px hsl(var(--destructive) / 0.3);
+  }
+  50% {
+    background: hsl(var(--destructive) / 0.12);
   }
   100% {
     background: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+@keyframes alert-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes alert-urgent {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes alert-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px hsl(var(--destructive) / 0.15);
+  }
+}
+
+@keyframes sentiment-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes cf-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
   }
 }

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -27,6 +27,7 @@ import {
   Newspaper,
   ShieldCheck,
   Sun,
+  Target,
   TrendingDown,
   TrendingUp,
   User,
@@ -39,87 +40,53 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
+// ─── Engine imports ────────────────────────────────────────
+import {
+  type StockView,
+  type Trend,
+  type MarketSentiment,
+  STOCKS,
+  initializeMarketStocks,
+  updateMarketStocks,
+  findStock,
+  getRandomTickInterval,
+  computeMarketSentiment,
+} from "@/lib/market-engine";
+import {
+  type NewsItem,
+  type NewsUrgency,
+  NEWS_DATABASE,
+  selectMarketEvent,
+  buildMarketAlert,
+  getNextEventTicks,
+  getContextualAlert,
+} from "@/lib/news-engine";
+import {
+  type Trade,
+  type BehaviorLog,
+  type SellEvent,
+  type PortfolioItem,
+  type SimulatorUser,
+  type Insight,
+  INITIAL_BALANCE,
+  makeId,
+  getInsight,
+  generateCounterfactual,
+  isFrequentTrader,
+} from "@/lib/learning-engine";
+
 type Screen = "dashboard" | "portfolio" | "history" | "insights";
 type AuthMode = "login" | "signup";
 type ThemeMode = "light" | "dark";
-type TradeType = "BUY" | "SELL";
-type Trend = "up" | "down" | "neutral";
-type NewsType = "positive" | "negative" | "neutral";
 
-type StockDefinition = {
-  id: string;
-  name: string;
-  sector: string;
-  price: number;
-  trend: Trend;
-  volatility: number;
-};
-
-type StockView = StockDefinition & {
-  currentPrice: number;
-  previousPrice: number;
-  percentChange: number;
-  recentDipIndex: number;
-  totalTrend: number;
-  observedVolatility: number;
-  history: number[];
-  lastMove: "up" | "down" | "flat";
-  lastEvent?: NewsItem;
-};
-
-type NewsItem = {
-  stock?: string;
-  sector?: string;
-  type: NewsType;
-  impact: number;
-  headline: string;
-};
-
-type PortfolioItem = {
-  stockId: string;
-  quantity: number;
-  averageBuyPrice: number;
-};
-
-type Trade = {
-  id: string;
-  type: TradeType;
-  stockId: string;
-  stockName: string;
-  price: number;
-  timeIndex: number;
-  createdAt: string;
-  profitOrLoss?: number;
-  label?: "Panic Sell" | "Normal Sell";
-};
-
-type BehaviorLog = {
+/** Tracks post-sell price data for counterfactual analysis */
+type CounterfactualTracker = {
   id: string;
   stockId: string;
-  behavior: "Panic Sell" | "Normal Sell";
-  message: string;
-  timeIndex: number;
-  profitOrLoss: number;
-};
-
-type SellEvent = {
-  action: "SELL";
-  stock: string;
-  buy_price: number;
-  sell_price: number;
-  profit_or_loss: number;
-  behavior: "Panic Sell" | "Normal Sell";
-  time: number;
-};
-
-type SimulatorUser = {
-  username: string;
-  password: string;
-  balance: number;
-  portfolio: Record<string, PortfolioItem>;
-  tradeHistory: Trade[];
-  behaviorLog: BehaviorLog[];
-  sellEvents: SellEvent[];
+  buyPrice: number;
+  sellPrice: number;
+  sellTimeIndex: number;
+  priceSnapshots: number[];
 };
 
 type PortfolioRow = PortfolioItem & {
@@ -131,90 +98,9 @@ type PortfolioRow = PortfolioItem & {
   profitLossPercent: number;
 };
 
-const INITIAL_BALANCE = 100000;
 const STORAGE_KEY = "investment-simulator-users-v2";
 const SESSION_KEY = "investment-simulator-session-v2";
 
-const STOCKS: StockDefinition[] = [
-  { id: "RELIANCE", name: "Reliance", sector: "Energy", price: 2500, trend: "neutral", volatility: 0.008 },
-  { id: "TCS", name: "TCS", sector: "IT Services", price: 3500, trend: "neutral", volatility: 0.007 },
-  { id: "HDFCBANK", name: "HDFC Bank", sector: "Banking", price: 1500, trend: "neutral", volatility: 0.007 },
-  { id: "INFY", name: "Infosys", sector: "IT Services", price: 1420, trend: "neutral", volatility: 0.008 },
-  { id: "ICICI", name: "ICICI Bank", sector: "Banking", price: 980, trend: "neutral", volatility: 0.008 },
-  { id: "SBI", name: "SBI", sector: "Banking", price: 730, trend: "neutral", volatility: 0.009 },
-  { id: "ITC", name: "ITC", sector: "Consumer", price: 450, trend: "neutral", volatility: 0.006 },
-  { id: "ADANI", name: "Adani Enterprises", sector: "Infrastructure", price: 3050, trend: "neutral", volatility: 0.011 },
-];
-
-const POSITIVE_HEADLINES = [
-  "reports stronger demand outlook after management update",
-  "gains as analysts point to improving margin visibility",
-  "moves higher after simulated institutional buying interest",
-  "shows recovery as investors return to large-cap names",
-  "rises after upbeat sector commentary",
-  "climbs on improving growth expectations",
-  "advances as market sentiment turns constructive",
-  "sees renewed buying after recent weakness",
-  "benefits from positive earnings revision talk",
-  "trends upward as risk appetite improves",
-];
-
-const NEGATIVE_HEADLINES = [
-  "faces regulatory concerns affecting growth outlook",
-  "drops as investors react to margin pressure",
-  "falls after weak sector commentary",
-  "slips as profit-booking accelerates",
-  "declines after uncertainty rises around near-term demand",
-  "comes under pressure from broad market selling",
-  "weakens as volatility increases across the sector",
-  "falls after cautious analyst commentary",
-  "sees selling pressure after simulated risk warning",
-  "drops as traders react to negative news flow",
-];
-
-const NEUTRAL_HEADLINES = [
-  "trades steady while investors wait for fresh cues",
-  "moves in a narrow range as volume remains normal",
-  "holds near recent levels with mixed sentiment",
-  "sees muted reaction to sector developments",
-  "stays range-bound during quiet market conditions",
-  "shows limited movement after balanced commentary",
-  "remains stable as broader market direction is unclear",
-  "consolidates after recent price action",
-  "sees cautious positioning from short-term traders",
-  "holds steady as investors assess the next trend",
-];
-
-const NEWS_DATABASE: NewsItem[] = STOCKS.flatMap((stock) => [
-  ...POSITIVE_HEADLINES.map((headline, index) => ({
-    stock: stock.id,
-    type: "positive" as const,
-    impact: [0.032, 0.038, 0.044, 0.05, 0.057, 0.064, 0.047, 0.036, 0.052, 0.069][index],
-    headline: `${stock.name} ${headline}`,
-  })),
-  ...NEGATIVE_HEADLINES.map((headline, index) => ({
-    stock: stock.id,
-    type: "negative" as const,
-    impact: [-0.033, -0.041, -0.052, -0.064, -0.071, -0.085, -0.096, -0.046, -0.058, -0.074][index],
-    headline: `${stock.name} ${headline}`,
-  })),
-  ...NEUTRAL_HEADLINES.map((headline) => ({
-    stock: stock.id,
-    type: "neutral" as const,
-    impact: 0,
-    headline: `${stock.name} ${headline}`,
-  })),
-]);
-
-const BROAD_MARKET_NEWS: NewsItem[] = [
-  { sector: "IT Services", type: "positive", impact: 0.041, headline: "Tech stocks trending up after recovery in global software sentiment" },
-  { sector: "Banking", type: "negative", impact: -0.055, headline: "Banking stocks slip as risk appetite cools across the market" },
-  { sector: "Energy", type: "negative", impact: -0.048, headline: "Energy stocks face pressure after simulated policy uncertainty" },
-  { sector: "Consumer", type: "positive", impact: 0.034, headline: "Consumer stocks hold firm as defensive buying improves" },
-  { sector: "Infrastructure", type: "positive", impact: 0.052, headline: "Infrastructure shares rally as sentiment improves" },
-  { type: "negative", impact: -0.039, headline: "Market dip detected after broad selling across large-cap stocks" },
-  { type: "positive", impact: 0.036, headline: "Broad market recovers as investors buy after earlier dip" },
-];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -226,10 +112,6 @@ function formatCurrency(value: number) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(value);
-}
-
-function makeId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function loadUsers(): Record<string, SimulatorUser> {
@@ -259,132 +141,6 @@ function createUser(username: string, password: string): SimulatorUser {
   };
 }
 
-function findStock(stockId: string) {
-  return STOCKS.find((stock) => stock.id === stockId);
-}
-
-function calculateObservedVolatility(history: number[]) {
-  const start = Math.max(1, history.length - 6);
-  const changes: number[] = [];
-  for (let index = start; index < history.length; index += 1) {
-    const previous = history[index - 1];
-    const current = history[index];
-    if (current && previous) {
-      const change = ((current - previous) / previous) * 100;
-      changes.push(Math.abs(change));
-    }
-  }
-  if (!changes.length) return 0;
-  return changes.reduce((total, value) => total + value, 0) / changes.length;
-}
-
-function getRecentDipIndex(history: number[]) {
-  for (let index = history.length - 1; index > Math.max(0, history.length - 5); index -= 1) {
-    const current = history[index];
-    const previous = history[index - 1];
-    if (previous && current) {
-      const change = ((current - previous) / previous) * 100;
-      if (change <= -5) return index - 1;
-    }
-  }
-  return -1;
-}
-
-function initializeMarketStocks(): StockView[] {
-  return STOCKS.map((stock) => ({
-    ...stock,
-    currentPrice: stock.price,
-    previousPrice: stock.price,
-    percentChange: 0,
-    recentDipIndex: -1,
-    totalTrend: 0,
-    observedVolatility: 0,
-    history: [stock.price],
-    lastMove: "flat",
-  }));
-}
-
-function selectMarketEvent(stocks: StockView[], timeIndex: number) {
-  const broadEventChance = Math.random();
-  if (broadEventChance < 0.34) {
-    return BROAD_MARKET_NEWS[(timeIndex + Math.floor(Math.random() * BROAD_MARKET_NEWS.length)) % BROAD_MARKET_NEWS.length];
-  }
-
-  const stock = stocks[Math.floor(Math.random() * stocks.length)] || stocks[0];
-  const candidates = NEWS_DATABASE.filter((news) => news.stock === stock?.id);
-  const eventCandidates = candidates.filter((news) => news.type !== "neutral");
-  return eventCandidates[(timeIndex + Math.floor(Math.random() * eventCandidates.length)) % eventCandidates.length];
-}
-
-function buildMarketAlert(event: NewsItem) {
-  if (event.headline.toLowerCase().includes("dip") || event.impact <= -0.055) return "Market dip detected";
-  if (event.sector) return `${event.sector} stocks trending ${event.type === "positive" ? "up" : "down"}`;
-  if (event.stock) return `${event.stock} reacts to breaking simulated news`;
-  return event.type === "positive" ? "Broad market trending up" : "Broad market pressure detected";
-}
-
-function updateMarketStocks(previousStocks: StockView[], timeIndex: number, event?: NewsItem) {
-  return previousStocks.map((stock, stockIndex) => {
-    const appliesToStock = Boolean(event && (event.stock === stock.id || event.sector === stock.sector || (!event.stock && !event.sector)));
-    const trendBias = stock.trend === "up" ? 0.0024 : stock.trend === "down" ? -0.0024 : 0;
-    const smoothWave = Math.sin((timeIndex + stockIndex) / 3) * stock.volatility * 0.42;
-    const baseMovement = (Math.random() - 0.5) * stock.volatility * 1.2;
-    const noise = (Math.random() - 0.5) * 0.003;
-    const eventImpact = appliesToStock && event ? event.impact : 0;
-    const nextTrend: Trend = appliesToStock && event?.type !== "neutral" ? (event?.type === "positive" ? "up" : "down") : stock.trend;
-    const movement = baseMovement + trendBias + smoothWave + noise + eventImpact;
-    const currentPrice = Math.max(20, Math.round(stock.currentPrice * (1 + movement)));
-    const history = [...stock.history, currentPrice].slice(-90);
-    const previousPrice = stock.currentPrice;
-    const percentChange = previousPrice ? ((currentPrice - previousPrice) / previousPrice) * 100 : 0;
-    const firstPrice = history[0] || stock.price;
-    const totalTrend = firstPrice ? ((currentPrice - firstPrice) / firstPrice) * 100 : 0;
-
-    return {
-      ...stock,
-      trend: nextTrend,
-      previousPrice,
-      currentPrice,
-      percentChange,
-      totalTrend,
-      observedVolatility: calculateObservedVolatility(history),
-      recentDipIndex: getRecentDipIndex(history),
-      history,
-      lastMove: percentChange > 0.05 ? "up" : percentChange < -0.05 ? "down" : "flat",
-      lastEvent: appliesToStock ? event : undefined,
-    };
-  });
-}
-
-function getInsight(user: SimulatorUser, totalProfitLoss: number) {
-  const lastBehavior = user.behaviorLog[0];
-  const lastTrade = user.tradeHistory[0];
-  const lastSixTradeResult = user.tradeHistory
-    .slice(0, 6)
-    .reduce((total, trade) => total + (trade.profitOrLoss || 0), 0);
-
-  if (lastBehavior?.behavior === "Panic Sell") {
-    return {
-      performance: lastSixTradeResult,
-      behavior: "You sold during a dip in the last trade.",
-      suggestion: "Markets often recover after short-term drops. Pause before reacting to fear.",
-    };
-  }
-
-  if (lastTrade?.type === "SELL") {
-    return {
-      performance: lastSixTradeResult,
-      behavior: "Your last exit was not marked as panic selling.",
-      suggestion: "Review why you sold: plan-based exits are usually better than emotion-based exits.",
-    };
-  }
-
-  return {
-    performance: totalProfitLoss,
-    behavior: user.tradeHistory.length ? "You are building market experience through small decisions." : "No behavior pattern yet. Make a few trades to generate insights.",
-    suggestion: "Watch the chart during dips and recoveries before deciding whether to sell.",
-  };
-}
 
 export default function Home() {
   const { toast } = useToast();
@@ -400,13 +156,18 @@ export default function Home() {
   const [stocks, setStocks] = useState<StockView[]>(() => initializeMarketStocks());
   const [activeNews, setActiveNews] = useState<NewsItem[]>([]);
   const [marketAlert, setMarketAlert] = useState("Live market engine warming up");
-  const [nextEventAt, setNextEventAt] = useState(() => 5 + Math.floor(Math.random() * 6));
+  const [nextEventAt, setNextEventAt] = useState(() => getNextEventTicks());
+  const [cfTrackers, setCfTrackers] = useState<CounterfactualTracker[]>([]);
+  const [sentiment, setSentiment] = useState<MarketSentiment>("neutral");
+  const tickTimeoutRef = useRef<number | null>(null);
 
   const currentUser = currentUsername ? users[currentUsername] : undefined;
 
+  // Variable-interval tick loop (3-5 seconds per tick)
   useEffect(() => {
     if (!currentUser) return;
-    const interval = window.setInterval(() => {
+
+    const tick = () => {
       setTimeIndex((previous) => {
         const nextTimeIndex = previous + 1;
         const shouldTriggerEvent = nextTimeIndex >= nextEventAt;
@@ -414,25 +175,46 @@ export default function Home() {
         setStocks((previousStocks) => {
           const event = shouldTriggerEvent ? selectMarketEvent(previousStocks, nextTimeIndex) : undefined;
           const updatedStocks = updateMarketStocks(previousStocks, nextTimeIndex, event);
-          const averageChange = updatedStocks.reduce((total, stock) => total + stock.percentChange, 0) / Math.max(updatedStocks.length, 1);
+
+          // Update market sentiment
+          setSentiment(computeMarketSentiment(updatedStocks));
 
           if (event) {
-            setActiveNews((previousNews) => [event, ...previousNews].slice(0, 8));
+            setActiveNews((previousNews) => [event, ...previousNews].slice(0, 10));
             setMarketAlert(buildMarketAlert(event));
-            setNextEventAt(nextTimeIndex + 5 + Math.floor(Math.random() * 6));
-          } else if (averageChange <= -1.8) {
-            setMarketAlert("Market dip detected");
-          } else if (averageChange >= 1.6) {
-            setMarketAlert("Broad market trending up");
+            setNextEventAt(nextTimeIndex + getNextEventTicks());
+          } else {
+            // Use contextual alerts between events
+            setMarketAlert((prev) => getContextualAlert(updatedStocks, prev));
           }
+
+          // Update counterfactual trackers with current prices
+          setCfTrackers((prev) =>
+            prev
+              .map((tracker) => {
+                const s = updatedStocks.find((st) => st.id === tracker.stockId);
+                if (!s || tracker.priceSnapshots.length >= 20) return tracker;
+                return { ...tracker, priceSnapshots: [...tracker.priceSnapshots, s.currentPrice] };
+              })
+              .filter((tracker) => tracker.priceSnapshots.length <= 20),
+          );
 
           return updatedStocks;
         });
 
         return nextTimeIndex;
       });
-    }, 3800);
-    return () => window.clearInterval(interval);
+
+      // Schedule next tick with variable interval (3-5 seconds)
+      tickTimeoutRef.current = window.setTimeout(tick, getRandomTickInterval());
+    };
+
+    // Start first tick
+    tickTimeoutRef.current = window.setTimeout(tick, getRandomTickInterval());
+
+    return () => {
+      if (tickTimeoutRef.current) window.clearTimeout(tickTimeoutRef.current);
+    };
   }, [currentUser, nextEventAt]);
 
   useEffect(() => {
@@ -512,8 +294,10 @@ export default function Home() {
         stockId: stock.id,
         stockName: stock.name,
         price: stock.currentPrice,
+        quantity: 1,
         timeIndex,
         createdAt: new Date().toISOString(),
+        trendAtTrade: stock.trend,
       };
 
       return {
@@ -521,7 +305,12 @@ export default function Home() {
         balance: user.balance - stock.currentPrice,
         portfolio: {
           ...user.portfolio,
-          [stock.id]: { stockId: stock.id, quantity: nextQuantity, averageBuyPrice: nextAverage },
+          [stock.id]: {
+            stockId: stock.id,
+            quantity: nextQuantity,
+            averageBuyPrice: nextAverage,
+            firstBuyTimeIndex: existing.firstBuyTimeIndex ?? timeIndex,
+          },
         },
         tradeHistory: [trade, ...user.tradeHistory],
       };
@@ -557,10 +346,12 @@ export default function Home() {
         stockId: stock.id,
         stockName: stock.name,
         price: stock.currentPrice,
+        quantity: 1,
         timeIndex,
         createdAt: new Date().toISOString(),
         profitOrLoss,
         label: behavior,
+        trendAtTrade: stock.trend,
       };
       const behaviorEntry: BehaviorLog = {
         id: makeId("behavior"),
@@ -578,7 +369,22 @@ export default function Home() {
         profit_or_loss: profitOrLoss,
         behavior,
         time: timeIndex,
+        buyTimeIndex: existing.firstBuyTimeIndex,
+        trendAtSell: stock.trend as Trend,
       };
+
+      // Start tracking counterfactual for this sell
+      setCfTrackers((prev) => [
+        {
+          id: makeId("cf"),
+          stockId: stock.id,
+          buyPrice: existing.averageBuyPrice,
+          sellPrice: stock.currentPrice,
+          sellTimeIndex: timeIndex,
+          priceSnapshots: [],
+        },
+        ...prev.slice(0, 4),
+      ]);
 
       return {
         ...user,
@@ -627,7 +433,18 @@ export default function Home() {
     ? selectedStock.history.map((price, index) => ({ time: `T${Math.max(1, timeIndex - selectedStock.history.length + index + 2)}`, price }))
     : [];
 
-  const insight = currentUser ? getInsight(currentUser, totalProfitLoss) : undefined;
+  // Compute insight with counterfactual from trackers
+  const latestCf = cfTrackers.find((t) => t.priceSnapshots.length >= 3);
+  const insight = useMemo<Insight | undefined>(() => {
+    if (!currentUser) return undefined;
+    const base = getInsight(currentUser, totalProfitLoss, stocks);
+    // Overlay counterfactual from live tracker if available
+    if (latestCf && latestCf.priceSnapshots.length >= 3) {
+      const cfResult = generateCounterfactual(latestCf.sellPrice, latestCf.buyPrice, latestCf.priceSnapshots);
+      if (cfResult) base.counterfactual = cfResult;
+    }
+    return base;
+  }, [currentUser, totalProfitLoss, stocks, latestCf?.priceSnapshots.length]);
   const rotatedNews = useMemo(() => {
     const selectedSector = selectedStock?.sector || "Market";
     const fallback = `${selectedStock?.name || "Market"} ${selectedStock?.percentChange && selectedStock.percentChange < 0 ? "faces pressure" : "shows momentum"} as ${selectedSector.toLowerCase()} sentiment shifts`;
@@ -732,14 +549,16 @@ export default function Home() {
                   buyStock={buyStock}
                   sellStock={sellStock}
                   news={rotatedNews}
+                  activeNews={activeNews}
                   marketAlert={marketAlert}
                   insight={insight}
+                  sentiment={sentiment}
                 />
               )}
 
               {screen === "portfolio" && <PortfolioScreen rows={portfolioRows} portfolioValue={portfolioValue} totalProfitLoss={totalProfitLoss} />}
               {screen === "history" && <HistoryScreen trades={currentUser.tradeHistory} behaviorLog={currentUser.behaviorLog} />}
-              {screen === "insights" && <InsightsScreen insight={insight} behaviorLog={currentUser.behaviorLog} trades={currentUser.tradeHistory} news={rotatedNews} />}
+              {screen === "insights" && <InsightsScreen insight={insight} behaviorLog={currentUser.behaviorLog} trades={currentUser.tradeHistory} news={rotatedNews} activeNews={activeNews} />}
             </main>
           </div>
         </div>
@@ -827,8 +646,10 @@ function DashboardScreen({
   buyStock,
   sellStock,
   news,
+  activeNews,
   marketAlert,
   insight,
+  sentiment,
 }: {
   stocks: StockView[];
   selectedStock?: StockView;
@@ -840,8 +661,10 @@ function DashboardScreen({
   buyStock: (stock: StockView) => void;
   sellStock: (stock: StockView) => void;
   news: string[];
+  activeNews: NewsItem[];
   marketAlert: string;
-  insight?: { performance: number; behavior: string; suggestion: string };
+  insight?: Insight;
+  sentiment: MarketSentiment;
 }) {
   if (!selectedStock) return null;
   const isPositive = selectedStock.percentChange >= 0;
@@ -861,6 +684,10 @@ function DashboardScreen({
                     {marketPhase === "dip" ? "Market dip" : marketPhase === "recovery" ? "Recovery" : "Live market"}
                   </Badge>
                   <Badge variant="outline" className="bg-background/60 capitalize">Trend: {selectedStock.trend}</Badge>
+                  <Badge variant="outline" className={`bg-background/60 ${sentiment === "bullish" ? "text-success" : sentiment === "bearish" ? "text-destructive" : sentiment === "volatile" ? "text-warning" : "text-muted-foreground"}`}>
+                    <span className={`mr-1.5 inline-block h-2 w-2 rounded-full live-dot ${sentiment === "bullish" ? "bg-success" : sentiment === "bearish" ? "bg-destructive" : sentiment === "volatile" ? "bg-warning" : "bg-muted-foreground"}`} />
+                    {sentiment === "bullish" ? "Bullish" : sentiment === "bearish" ? "Bearish" : sentiment === "volatile" ? "Volatile" : "Neutral"}
+                  </Badge>
                 </div>
                 <h2 className="mt-4 text-3xl font-black tracking-tight md:text-5xl">{selectedStock.name}</h2>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -870,14 +697,19 @@ function DashboardScreen({
                     {isPositive ? "+" : ""}{selectedStock.percentChange.toFixed(2)}%
                   </p>
                 </div>
+                <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>H: <span className="font-bold text-success">{formatCurrency(selectedStock.sessionHigh)}</span></span>
+                  <span>L: <span className="font-bold text-destructive">{formatCurrency(selectedStock.sessionLow)}</span></span>
+                  <span>Vol: <span className="font-bold">{selectedStock.observedVolatility.toFixed(2)}%</span></span>
+                </div>
               </div>
               <div className="flex gap-3">
                 <Button size="lg" className="min-w-28" onClick={() => buyStock(selectedStock)}>Buy</Button>
                 <Button size="lg" variant="outline" className="min-w-28 bg-background/70" disabled={!canSell} onClick={() => sellStock(selectedStock)}>Sell</Button>
               </div>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl border bg-background/55 px-4 py-3 text-sm font-semibold">
-              <Bell className="h-4 w-4 text-primary" />
+            <div className={`flex items-center gap-3 rounded-2xl border bg-background/55 px-4 py-3 text-sm font-semibold ${marketAlert.includes("BREAKING") ? "alert-urgent border-destructive/30 bg-destructive/5" : marketAlert.includes("⚠") ? "alert-pulse border-warning/30" : ""}`}>
+              <Bell className={`h-4 w-4 ${marketAlert.includes("BREAKING") ? "text-destructive" : "text-primary"}`} />
               <span>{marketAlert}</span>
             </div>
 
@@ -886,12 +718,19 @@ function DashboardScreen({
                 <button
                   key={stock.id}
                   onClick={() => setSelectedStockId(stock.id)}
-                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedStockId === stock.id ? "border-primary bg-primary/10 shadow-lg shadow-primary/10" : "bg-background/65 hover:bg-background"} ${stock.lastMove === "up" ? "price-flash-up" : stock.lastMove === "down" ? "price-flash-down" : ""}`}
+                  className={`stock-card rounded-2xl border p-4 text-left ${selectedStockId === stock.id ? "border-primary bg-primary/10 shadow-lg shadow-primary/10" : "bg-background/65 hover:bg-background"} ${stock.lastMove === "up" ? "price-flash-up" : stock.lastMove === "down" ? "price-flash-down" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-black">{stock.name}</p>
-                      <p className="text-xs text-muted-foreground">{stock.id}</p>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">{stock.id}</p>
+                        {stock.trend !== "neutral" && (
+                          <span className={`text-[10px] font-bold uppercase ${stock.trend === "up" ? "text-success" : "text-destructive"}`}>
+                            {stock.trend === "up" ? "▲" : "▼"}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className={stock.percentChange >= 0 ? "text-xs font-bold text-success" : "text-xs font-bold text-destructive"}>{stock.percentChange >= 0 ? "+" : ""}{stock.percentChange.toFixed(1)}%</span>
                   </div>
@@ -926,20 +765,21 @@ function DashboardScreen({
                   formatter={(value) => [formatCurrency(Number(value)), "Price"]}
                   contentStyle={{ borderRadius: 16, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
                 />
-                <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" strokeWidth={3} fill="url(#premiumPriceFill)" activeDot={{ r: 6 }} animationDuration={700} />
+                <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" strokeWidth={3} fill="url(#premiumPriceFill)" activeDot={{ r: 6, strokeWidth: 2 }} animationDuration={400} animationEasing="ease-out" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <StatCard title="Day change" value={`${isPositive ? "+" : ""}${selectedStock.percentChange.toFixed(2)}%`} tone={isPositive ? "positive" : "negative"} icon={<Activity className="h-5 w-5" />} />
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard title="Tick change" value={`${isPositive ? "+" : ""}${selectedStock.percentChange.toFixed(2)}%`} tone={isPositive ? "positive" : "negative"} icon={<Activity className="h-5 w-5" />} />
           <StatCard title="Total trend" value={`${selectedStock.totalTrend >= 0 ? "+" : ""}${selectedStock.totalTrend.toFixed(2)}%`} tone={selectedStock.totalTrend >= 0 ? "positive" : "negative"} icon={<TrendingUp className="h-5 w-5" />} />
           <StatCard title="Volatility" value={`${selectedStock.observedVolatility.toFixed(2)}%`} tone="neutral" icon={<Gauge className="h-5 w-5" />} />
+          <StatCard title="Momentum" value={`${selectedStock.momentum >= 0 ? "+" : ""}${(selectedStock.momentum * 100).toFixed(2)}%`} tone={selectedStock.momentum >= 0 ? "positive" : "negative"} icon={<TrendingDown className="h-5 w-5" />} />
         </div>
       </section>
 
-      <RightPanel news={news} insight={insight} marketAlert={marketAlert} />
+      <RightPanel news={news} activeNews={activeNews} insight={insight} marketAlert={marketAlert} />
     </div>
   );
 }
@@ -959,18 +799,26 @@ function StatCard({ title, value, tone, icon }: { title: string; value: string; 
   );
 }
 
-function RightPanel({ news, insight, marketAlert }: { news: string[]; marketAlert: string; insight?: { performance: number; behavior: string; suggestion: string } }) {
+function RightPanel({ news, activeNews, insight, marketAlert }: { news: string[]; activeNews: NewsItem[]; marketAlert?: string; insight?: Insight }) {
+  // Map headlines to their urgency from activeNews
+  const urgencyMap = new Map<string, NewsUrgency>();
+  for (const item of activeNews) {
+    urgencyMap.set(item.headline, item.urgency);
+  }
+
   return (
     <aside className="space-y-5">
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex items-start gap-3 p-4">
-          <Bell className="mt-0.5 h-5 w-5 text-primary" />
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Market alert</p>
-            <p className="mt-1 text-sm font-bold">{marketAlert}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {marketAlert && (
+        <Card className={`${marketAlert.includes("BREAKING") ? "border-destructive/30 bg-destructive/5 alert-urgent" : "border-primary/20 bg-primary/5"}`}>
+          <CardContent className="flex items-start gap-3 p-4">
+            <Bell className={`mt-0.5 h-5 w-5 ${marketAlert.includes("BREAKING") ? "text-destructive" : "text-primary"}`} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Market alert</p>
+              <p className="mt-1 text-sm font-bold">{marketAlert}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -978,28 +826,47 @@ function RightPanel({ news, insight, marketAlert }: { news: string[]; marketAler
           <CardDescription>Simulated headlines that create realistic market context.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {news.slice(0, 5).map((headline, index) => (
-            <div key={`${headline}-${index}`} className={`rounded-2xl border bg-background/55 p-4 transition hover:bg-muted/50 ${index === 0 ? "news-highlight" : ""}`}>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Badge variant="outline">Market</Badge>
-                <span className="text-xs text-muted-foreground">T-{index + 1}</span>
+          {news.slice(0, 5).map((headline, index) => {
+            const urgency = urgencyMap.get(headline);
+            const urgencyClass = index === 0
+              ? (urgency === "breaking" ? "news-breaking" : urgency === "flash" ? "news-flash" : "news-highlight")
+              : "";
+            return (
+              <div key={`${headline}-${index}`} className={`news-slide-in rounded-2xl border bg-background/55 p-4 transition hover:bg-muted/50 ${urgencyClass}`}>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Market</Badge>
+                    {urgency === "breaking" && <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/15 text-[10px]">BREAKING</Badge>}
+                    {urgency === "flash" && <Badge className="bg-warning/15 text-warning hover:bg-warning/15 text-[10px]">FLASH</Badge>}
+                  </div>
+                  <span className="text-xs text-muted-foreground">T-{index + 1}</span>
+                </div>
+                <p className="text-sm font-semibold leading-6">{headline}</p>
               </div>
-              <p className="text-sm font-semibold leading-6">{headline}</p>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
       <Card className="insight-card overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5" />AI Learning Insights</CardTitle>
-          <CardDescription>Rule-based today, structured for future AI feedback.</CardDescription>
+          <CardDescription>Behavior-focused guidance from your trading decisions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-2xl bg-background/65 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Last 1 Hour Performance</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Recent Performance</p>
             <p className={`mt-2 text-3xl font-black ${(insight?.performance || 0) >= 0 ? "text-success" : "text-destructive"}`}>{(insight?.performance || 0) >= 0 ? "+" : ""}{formatCurrency(insight?.performance || 0)}</p>
+            {insight?.winRate !== undefined && insight.winRate > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">Win rate: <span className="font-bold">{insight.winRate.toFixed(0)}%</span></p>
+            )}
           </div>
+          {insight?.frequentTrading && (
+            <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-warning">⚡ Frequent Trading</p>
+              <p className="mt-2 text-sm font-semibold leading-6">You are making many trades in a short period. This may indicate reactive behavior.</p>
+            </div>
+          )}
           <div className="rounded-2xl border bg-background/65 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior Insight</p>
             <p className="mt-2 text-sm font-semibold leading-6">{insight?.behavior}</p>
@@ -1008,6 +875,21 @@ function RightPanel({ news, insight, marketAlert }: { news: string[]; marketAler
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Suggestion</p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight?.suggestion}</p>
           </div>
+          {insight?.additionalInsights && insight.additionalInsights.length > 0 && (
+            <div className="space-y-2">
+              {insight.additionalInsights.map((ai, idx) => (
+                <div key={idx} className="rounded-2xl border border-accent/40 bg-accent/5 p-3">
+                  <p className="text-xs font-semibold leading-5">{ai}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {insight?.counterfactual && (
+            <div className="cf-card rounded-2xl border border-primary/25 bg-primary/5 p-4">
+              <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-primary"><Target className="h-4 w-4" />What could you have done better?</p>
+              <p className="mt-2 text-sm font-semibold leading-6">{insight.counterfactual}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </aside>
@@ -1142,26 +1024,71 @@ function BehaviorLogCard({ behaviorLog }: { behaviorLog: BehaviorLog[] }) {
   );
 }
 
-function InsightsScreen({ insight, behaviorLog, trades, news }: { insight?: { performance: number; behavior: string; suggestion: string }; behaviorLog: BehaviorLog[]; trades: Trade[]; news: string[] }) {
+function InsightsScreen({ insight, behaviorLog, trades, news, activeNews }: { insight?: Insight; behaviorLog: BehaviorLog[]; trades: Trade[]; news: string[]; activeNews: NewsItem[] }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Card className="insight-card">
-        <CardHeader>
-          <CardTitle>Learning Insights</CardTitle>
-          <CardDescription>Behavior-focused guidance from your recent simulated decisions.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <StatCard title="Last 1 hour" value={`${(insight?.performance || 0) >= 0 ? "+" : ""}${formatCurrency(insight?.performance || 0)}`} tone={(insight?.performance || 0) >= 0 ? "positive" : "negative"} icon={<BarChart3 className="h-5 w-5" />} />
-          <StatCard title="Trades" value={String(trades.length)} tone="neutral" icon={<History className="h-5 w-5" />} />
-          <StatCard title="Panic sells" value={String(behaviorLog.filter((item) => item.behavior === "Panic Sell").length)} tone="negative" icon={<TrendingDown className="h-5 w-5" />} />
-          <div className="rounded-3xl border bg-background/60 p-5 md:col-span-3">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior Insight</p>
-            <p className="mt-2 text-lg font-black">{insight?.behavior}</p>
-            <p className="mt-3 leading-7 text-muted-foreground">{insight?.suggestion}</p>
-          </div>
-        </CardContent>
-      </Card>
-      <RightPanel news={news} insight={insight} />
+      <div className="space-y-5">
+        <Card className="insight-card">
+          <CardHeader>
+            <CardTitle>Learning Insights</CardTitle>
+            <CardDescription>Behavior-focused guidance from your recent simulated decisions.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-4">
+            <StatCard title="Performance" value={`${(insight?.performance || 0) >= 0 ? "+" : ""}${formatCurrency(insight?.performance || 0)}`} tone={(insight?.performance || 0) >= 0 ? "positive" : "negative"} icon={<BarChart3 className="h-5 w-5" />} />
+            <StatCard title="Trades" value={String(trades.length)} tone="neutral" icon={<History className="h-5 w-5" />} />
+            <StatCard title="Panic sells" value={String(behaviorLog.filter((item) => item.behavior === "Panic Sell").length)} tone="negative" icon={<TrendingDown className="h-5 w-5" />} />
+            <StatCard title="Win rate" value={insight?.winRate !== undefined ? `${insight.winRate.toFixed(0)}%` : "—"} tone={(insight?.winRate || 0) >= 50 ? "positive" : "negative"} icon={<Target className="h-5 w-5" />} />
+            <div className="rounded-3xl border bg-background/60 p-5 md:col-span-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior Insight</p>
+              <p className="mt-2 text-lg font-black">{insight?.behavior}</p>
+              <p className="mt-3 leading-7 text-muted-foreground">{insight?.suggestion}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {insight?.additionalInsights && insight.additionalInsights.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" />Detailed Analysis</CardTitle>
+              <CardDescription>Additional patterns detected from your trading behavior.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {insight.additionalInsights.map((ai, idx) => (
+                <div key={idx} className="rounded-2xl border border-accent/40 bg-accent/5 p-4">
+                  <p className="text-sm font-semibold leading-6">{ai}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {insight?.counterfactual && (
+          <Card className="border-primary/20 overflow-hidden cf-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-primary" />What could you have done better?</CardTitle>
+              <CardDescription>Counterfactual analysis of your most recent sell decision.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 p-5">
+                <p className="text-sm font-semibold leading-7">{insight.counterfactual}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {insight?.frequentTrading && (
+          <Card className="border-warning/20">
+            <CardContent className="flex items-start gap-3 p-5">
+              <div className="rounded-2xl bg-warning/10 p-3 text-warning"><Activity className="h-5 w-5" /></div>
+              <div>
+                <p className="font-black">Frequent Trading Detected</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">You are making many trades in a short window. Frequent trading often leads to worse outcomes due to emotional decision-making. Consider observing the market before your next move.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+      <RightPanel news={news} activeNews={activeNews} insight={insight} />
     </div>
   );
 }
