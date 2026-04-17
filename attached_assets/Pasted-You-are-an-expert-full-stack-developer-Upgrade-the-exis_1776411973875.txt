@@ -1,0 +1,240 @@
+You are an expert full-stack developer. Upgrade the existing Investment Simulator MVP into a complete, structured user experience with realistic simulation behavior.
+
+Follow instructions strictly and build in phases.
+
+--------------------------------------------------
+
+🔹 CORE PRINCIPLE
+
+This is a learning simulator, not a trading app.
+
+Focus on:
+- user experience
+- emotional decision-making
+- simplicity + realism balance
+
+--------------------------------------------------
+
+🔹 PHASE 1: USER FLOW STRUCTURE
+
+Build proper navigation with these screens:
+
+1. Login / Signup Page
+2. Dashboard (Main app)
+3. Portfolio Page
+4. Trade History Page
+
+Use simple routing (no heavy frameworks required).
+
+--------------------------------------------------
+
+🔹 PHASE 2: AUTHENTICATION (SIMPLE)
+
+- Allow user to:
+  - Sign up with username + password
+  - Login
+
+- Store user data locally (or simple backend storage)
+
+- On login:
+  - Initialize user with ₹100,000
+
+IMPORTANT:
+Keep auth simple. No encryption complexity needed.
+
+--------------------------------------------------
+
+🔹 PHASE 3: DASHBOARD (MAIN EXPERIENCE)
+
+Dashboard should include:
+
+1. Current balance
+2. List of stocks (expand to 8–10 stocks):
+   - Reliance
+   - TCS
+   - HDFC Bank
+   - Infosys
+   - ICICI Bank
+   - SBI
+   - ITC
+   - Adani Enterprises
+
+3. Each stock should show:
+   - Name
+   - Current price
+   - % change
+   - Buy / Sell buttons
+
+--------------------------------------------------
+
+🔹 PHASE 4: REALISTIC PRICE SIMULATION
+
+Implement time-based price movement:
+
+OPTION A (Preferred):
+- Create a predefined dataset (mock historical data)
+
+Example:
+For each stock:
+[
+  {time: 1, price: 2500},
+  {time: 2, price: 2480},
+  {time: 3, price: 2520}
+]
+
+OPTION B:
+- Random fluctuation (fallback)
+
+System behavior:
+- Every 3–5 seconds:
+  - Move to next time step
+  - Update all stock prices
+
+IMPORTANT:
+- Maintain global "time index"
+- All stocks update together
+
+--------------------------------------------------
+
+🔹 PHASE 5: GRAPH VISUALIZATION
+
+Add a price chart for each stock:
+
+- Use a simple chart library (like Chart.js)
+- Show:
+  - Price vs time
+
+Features:
+- When user clicks a stock → open graph
+- Graph updates live as time progresses
+
+--------------------------------------------------
+
+🔹 PHASE 6: PORTFOLIO PAGE
+
+Show:
+
+- Stocks owned
+- Quantity
+- Average buy price
+- Current price
+- Total profit/loss
+
+Make it clean and readable.
+
+--------------------------------------------------
+
+🔹 PHASE 7: TRADE HISTORY
+
+Track every trade:
+
+- Buy/Sell
+- Stock name
+- Price
+- Time
+
+Display as a list.
+
+--------------------------------------------------
+
+🔹 PHASE 8: ADVANCED SIMULATION (IMPORTANT)
+
+Introduce:
+
+1. Market dips:
+   - Occasionally drop prices by 5–15%
+
+2. Recovery patterns:
+   - After dip, gradually increase prices
+
+Goal:
+Create emotional cycles:
+- fear → recovery
+
+--------------------------------------------------
+
+🔹 PHASE 9: BEHAVIOR DETECTION
+
+When user sells:
+
+Detect:
+
+IF:
+- selling after recent dip
+
+THEN:
+Mark as:
+"Panic Sell"
+
+Store this in user behavior data.
+
+--------------------------------------------------
+
+🔹 PHASE 10: FEEDBACK SYSTEM
+
+After selling:
+
+Show message:
+
+Case 1: Panic sell
+"You sold during a dip. Historically, markets recover after such drops."
+
+Case 2: Normal sell
+"You exited your position. Long-term investing often requires patience."
+
+Keep tone:
+- simple
+- slightly instructive
+- not preachy
+
+--------------------------------------------------
+
+🔹 PHASE 11: DATA STRUCTURE (IMPORTANT)
+
+Maintain:
+
+User:
+- balance
+- portfolio
+- trade history
+- behavior log
+
+Stock:
+- price timeline array
+- current index
+
+--------------------------------------------------
+
+🔹 PHASE 12: UI IMPROVEMENTS
+
+- Add tabs/navigation
+- Clean layout
+- Highlight profit/loss (green/red)
+
+Avoid overdesign.
+
+--------------------------------------------------
+
+🔹 PHASE 13: CONSTRAINTS
+
+- No real APIs
+- No complex backend required
+- Keep everything manageable
+- Focus on smooth experience
+
+--------------------------------------------------
+
+🔹 FINAL EXPECTATION
+
+The app should:
+
+- Allow login
+- Simulate time-based market
+- Show live graphs
+- Let user buy/sell
+- Track behavior
+- Show feedback after decisions
+
+--------------------------------------------------
+
+Ensure everything works smoothly without errors.
