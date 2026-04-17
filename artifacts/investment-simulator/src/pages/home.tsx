@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   XAxis,
@@ -15,14 +13,24 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Bell,
   BookOpen,
   Briefcase,
+  ChevronRight,
   Clock,
+  Gauge,
+  History,
+  LayoutDashboard,
+  Lightbulb,
   LogOut,
+  Moon,
+  Newspaper,
   ShieldCheck,
+  Sun,
   TrendingDown,
   TrendingUp,
   User,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,13 +39,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
-type Screen = "dashboard" | "portfolio" | "history";
+type Screen = "dashboard" | "portfolio" | "history" | "insights";
 type AuthMode = "login" | "signup";
+type ThemeMode = "light" | "dark";
 type TradeType = "BUY" | "SELL";
 
 type StockDefinition = {
   id: string;
   name: string;
+  sector: string;
   timeline: number[];
 };
 
@@ -46,6 +56,8 @@ type StockView = StockDefinition & {
   previousPrice: number;
   percentChange: number;
   recentDipIndex: number;
+  totalTrend: number;
+  volatility: number;
 };
 
 type PortfolioItem = {
@@ -95,19 +107,39 @@ type SimulatorUser = {
   sellEvents: SellEvent[];
 };
 
+type PortfolioRow = PortfolioItem & {
+  stockName: string;
+  currentPrice: number;
+  currentValue: number;
+  investedValue: number;
+  profitLoss: number;
+  profitLossPercent: number;
+};
+
 const INITIAL_BALANCE = 100000;
 const STORAGE_KEY = "investment-simulator-users-v2";
 const SESSION_KEY = "investment-simulator-session-v2";
 
 const STOCKS: StockDefinition[] = [
-  { id: "RELIANCE", name: "Reliance", timeline: [2500, 2528, 2495, 2552, 2410, 2268, 2295, 2358, 2432, 2475, 2535, 2580, 2548, 2605, 2440, 2315, 2352, 2415, 2490, 2562, 2620, 2590, 2665, 2708] },
-  { id: "TCS", name: "TCS", timeline: [3500, 3472, 3528, 3590, 3410, 3195, 3242, 3318, 3388, 3465, 3542, 3615, 3580, 3655, 3440, 3260, 3312, 3395, 3480, 3568, 3635, 3600, 3688, 3745] },
-  { id: "HDFCBANK", name: "HDFC Bank", timeline: [1500, 1516, 1490, 1532, 1448, 1358, 1382, 1416, 1462, 1495, 1534, 1562, 1544, 1588, 1492, 1408, 1430, 1468, 1510, 1550, 1582, 1560, 1605, 1632] },
-  { id: "INFY", name: "Infosys", timeline: [1420, 1438, 1412, 1460, 1378, 1295, 1318, 1354, 1398, 1435, 1482, 1516, 1492, 1538, 1444, 1362, 1388, 1424, 1470, 1512, 1540, 1524, 1572, 1605] },
-  { id: "ICICI", name: "ICICI Bank", timeline: [980, 994, 972, 1008, 948, 890, 906, 930, 962, 990, 1018, 1045, 1028, 1060, 995, 938, 952, 982, 1012, 1042, 1068, 1052, 1085, 1110] },
-  { id: "SBI", name: "SBI", timeline: [730, 742, 724, 756, 708, 665, 678, 698, 722, 746, 770, 792, 780, 806, 754, 712, 726, 748, 775, 798, 818, 806, 835, 858] },
-  { id: "ITC", name: "ITC", timeline: [450, 456, 448, 462, 438, 414, 422, 434, 446, 458, 472, 484, 478, 492, 464, 438, 446, 458, 472, 486, 498, 490, 506, 518] },
-  { id: "ADANI", name: "Adani Enterprises", timeline: [3050, 3105, 2990, 3160, 2940, 2660, 2725, 2845, 2978, 3068, 3195, 3310, 3235, 3380, 3098, 2865, 2935, 3075, 3210, 3355, 3470, 3410, 3560, 3685] },
+  { id: "RELIANCE", name: "Reliance", sector: "Energy", timeline: [2500, 2528, 2495, 2552, 2410, 2268, 2295, 2358, 2432, 2475, 2535, 2580, 2548, 2605, 2440, 2315, 2352, 2415, 2490, 2562, 2620, 2590, 2665, 2708] },
+  { id: "TCS", name: "TCS", sector: "IT Services", timeline: [3500, 3472, 3528, 3590, 3410, 3195, 3242, 3318, 3388, 3465, 3542, 3615, 3580, 3655, 3440, 3260, 3312, 3395, 3480, 3568, 3635, 3600, 3688, 3745] },
+  { id: "HDFCBANK", name: "HDFC Bank", sector: "Banking", timeline: [1500, 1516, 1490, 1532, 1448, 1358, 1382, 1416, 1462, 1495, 1534, 1562, 1544, 1588, 1492, 1408, 1430, 1468, 1510, 1550, 1582, 1560, 1605, 1632] },
+  { id: "INFY", name: "Infosys", sector: "IT Services", timeline: [1420, 1438, 1412, 1460, 1378, 1295, 1318, 1354, 1398, 1435, 1482, 1516, 1492, 1538, 1444, 1362, 1388, 1424, 1470, 1512, 1540, 1524, 1572, 1605] },
+  { id: "ICICI", name: "ICICI Bank", sector: "Banking", timeline: [980, 994, 972, 1008, 948, 890, 906, 930, 962, 990, 1018, 1045, 1028, 1060, 995, 938, 952, 982, 1012, 1042, 1068, 1052, 1085, 1110] },
+  { id: "SBI", name: "SBI", sector: "Banking", timeline: [730, 742, 724, 756, 708, 665, 678, 698, 722, 746, 770, 792, 780, 806, 754, 712, 726, 748, 775, 798, 818, 806, 835, 858] },
+  { id: "ITC", name: "ITC", sector: "Consumer", timeline: [450, 456, 448, 462, 438, 414, 422, 434, 446, 458, 472, 484, 478, 492, 464, 438, 446, 458, 472, 486, 498, 490, 506, 518] },
+  { id: "ADANI", name: "Adani Enterprises", sector: "Infrastructure", timeline: [3050, 3105, 2990, 3160, 2940, 2660, 2725, 2845, 2978, 3068, 3195, 3310, 3235, 3380, 3098, 2865, 2935, 3075, 3210, 3355, 3470, 3410, 3560, 3685] },
+];
+
+const NEWS_BANK = [
+  "Reliance shares drop after broad market correction",
+  "IT stocks show recovery trend after early selling",
+  "Banking names remain volatile as investors reassess risk",
+  "Consumer stocks hold steady while high-beta names swing",
+  "Market sentiment improves after sharp intraday dip",
+  "Analysts warn beginners not to overreact to short-term moves",
+  "Recovery pattern appears in large-cap simulated basket",
+  "Infrastructure stocks move sharply as volatility increases",
 ];
 
 function formatCurrency(value: number) {
@@ -174,6 +206,50 @@ function getRecentDipIndex(stock: StockDefinition, currentIndex: number) {
   return -1;
 }
 
+function calculateVolatility(timeline: number[], currentIndex: number) {
+  const start = Math.max(1, currentIndex - 5);
+  const changes: number[] = [];
+  for (let index = start; index <= currentIndex; index += 1) {
+    const previous = timeline[index - 1];
+    const current = timeline[index];
+    if (previous && current) {
+      changes.push(Math.abs(((current - previous) / previous) * 100));
+    }
+  }
+  if (!changes.length) return 0;
+  return changes.reduce((total, value) => total + value, 0) / changes.length;
+}
+
+function getInsight(user: SimulatorUser, totalProfitLoss: number) {
+  const lastBehavior = user.behaviorLog[0];
+  const lastTrade = user.tradeHistory[0];
+  const lastSixTradeResult = user.tradeHistory
+    .slice(0, 6)
+    .reduce((total, trade) => total + (trade.profitOrLoss || 0), 0);
+
+  if (lastBehavior?.behavior === "Panic Sell") {
+    return {
+      performance: lastSixTradeResult,
+      behavior: "You sold during a dip in the last trade.",
+      suggestion: "Markets often recover after short-term drops. Pause before reacting to fear.",
+    };
+  }
+
+  if (lastTrade?.type === "SELL") {
+    return {
+      performance: lastSixTradeResult,
+      behavior: "Your last exit was not marked as panic selling.",
+      suggestion: "Review why you sold: plan-based exits are usually better than emotion-based exits.",
+    };
+  }
+
+  return {
+    performance: totalProfitLoss,
+    behavior: user.tradeHistory.length ? "You are building market experience through small decisions." : "No behavior pattern yet. Make a few trades to generate insights.",
+    suggestion: "Watch the chart during dips and recoveries before deciding whether to sell.",
+  };
+}
+
 export default function Home() {
   const { toast } = useToast();
   const [users, setUsers] = useState<Record<string, SimulatorUser>>(() => loadUsers());
@@ -182,6 +258,7 @@ export default function Home() {
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [screen, setScreen] = useState<Screen>("dashboard");
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [timeIndex, setTimeIndex] = useState(0);
   const [selectedStockId, setSelectedStockId] = useState(STOCKS[0]?.id || "");
 
@@ -192,7 +269,7 @@ export default function Home() {
     if (!currentUser) return;
     const interval = window.setInterval(() => {
       setTimeIndex((previous) => (previous + 1) % maxTimelineLength);
-    }, 4000);
+    }, 3800);
     return () => window.clearInterval(interval);
   }, [currentUser, maxTimelineLength]);
 
@@ -204,19 +281,22 @@ export default function Home() {
     return STOCKS.map((stock) => {
       const currentPrice = priceAt(stock, timeIndex);
       const previousPrice = priceAt(stock, timeIndex === 0 ? 0 : timeIndex - 1);
+      const firstPrice = stock.timeline[0];
       const percentChange = previousPrice ? ((currentPrice - previousPrice) / previousPrice) * 100 : 0;
+      const totalTrend = firstPrice ? ((currentPrice - firstPrice) / firstPrice) * 100 : 0;
       return {
         ...stock,
         currentPrice,
         previousPrice,
         percentChange,
+        totalTrend,
+        volatility: calculateVolatility(stock.timeline, timeIndex),
         recentDipIndex: getRecentDipIndex(stock, timeIndex),
       };
     });
   }, [timeIndex]);
 
   const selectedStock = stocks.find((stock) => stock.id === selectedStockId) || stocks[0];
-
   const marketAverageChange = stocks.reduce((total, stock) => total + stock.percentChange, 0) / Math.max(stocks.length, 1);
   const marketPhase = marketAverageChange <= -5 ? "dip" : marketAverageChange >= 4 ? "recovery" : "normal";
 
@@ -304,7 +384,7 @@ export default function Home() {
       };
     });
 
-    toast({ title: "Bought 1 share", description: `${stock.name} was added to your portfolio at ${formatCurrency(stock.currentPrice)}.` });
+    toast({ title: "Bought 1 share", description: `${stock.name} was added at ${formatCurrency(stock.currentPrice)}.` });
   };
 
   const sellStock = (stock: StockView) => {
@@ -325,13 +405,8 @@ export default function Home() {
     updateCurrentUser((user) => {
       const existing = user.portfolio[stock.id] || holding;
       const nextQuantity = Math.max(0, existing.quantity - 1);
-      const nextPortfolio = {
-        ...user.portfolio,
-        [stock.id]: { ...existing, quantity: nextQuantity },
-      };
-      if (nextQuantity === 0) {
-        delete nextPortfolio[stock.id];
-      }
+      const nextPortfolio = { ...user.portfolio, [stock.id]: { ...existing, quantity: nextQuantity } };
+      if (nextQuantity === 0) delete nextPortfolio[stock.id];
 
       const trade: Trade = {
         id: makeId("trade"),
@@ -380,7 +455,7 @@ export default function Home() {
     });
   };
 
-  const portfolioRows = useMemo(() => {
+  const portfolioRows = useMemo<PortfolioRow[]>(() => {
     if (!currentUser) return [];
     return Object.values(currentUser.portfolio).map((holding) => {
       const stock = stocks.find((item) => item.id === holding.stockId);
@@ -409,148 +484,187 @@ export default function Home() {
     ? selectedStock.timeline.slice(0, timeIndex + 1).map((price, index) => ({ time: `T${index + 1}`, price }))
     : [];
 
+  const insight = currentUser ? getInsight(currentUser, totalProfitLoss) : undefined;
+  const rotatedNews = useMemo(() => {
+    const selectedSector = selectedStock?.sector || "Market";
+    const first = `${selectedStock?.name || "Market"} ${selectedStock?.percentChange && selectedStock.percentChange < 0 ? "faces pressure" : "shows momentum"} as ${selectedSector.toLowerCase()} sentiment shifts`;
+    return [first, ...NEWS_BANK].slice(timeIndex % 3, (timeIndex % 3) + 5);
+  }, [selectedStock, timeIndex]);
+
   if (!currentUser) {
     return (
-      <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top_left,hsl(243_75%_92%),transparent_35%),linear-gradient(135deg,hsl(210_40%_98%),hsl(220_60%_96%))] px-4 py-10">
-        <div className="mx-auto grid min-h-[calc(100dvh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-6">
-            <Badge className="bg-primary/10 text-primary hover:bg-primary/10">Learning simulator</Badge>
-            <div className="space-y-4">
-              <h1 className="max-w-3xl text-4xl font-extrabold tracking-tight text-foreground md:text-6xl">Investment Simulator</h1>
-              <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
-                Practice market decisions with virtual money. Learn how dips, recovery, and emotions affect investing behavior without using real stock data or real cash.
-              </p>
+      <div className={`${theme === "dark" ? "dark" : ""}`}>
+        <div className="min-h-[100dvh] overflow-hidden bg-background text-foreground">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,hsl(var(--primary)/0.20),transparent_32%),radial-gradient(circle_at_80%_0%,hsl(var(--success)/0.12),transparent_28%)]" />
+          <div className="relative mx-auto grid min-h-[100dvh] max-w-6xl items-center gap-8 px-5 py-10 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-7">
+              <Badge className="border border-primary/20 bg-primary/10 text-primary hover:bg-primary/10">Beginner finance dashboard</Badge>
+              <div className="space-y-5">
+                <h1 className="max-w-3xl text-5xl font-black tracking-[-0.04em] text-foreground md:text-7xl">InvestSim</h1>
+                <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
+                  A premium market simulator for practicing decisions with virtual money, live charts, simulated news, and behavior insights.
+                </p>
+              </div>
+              <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
+                <FeatureCard icon={<ShieldCheck className="h-5 w-5" />} title="Risk free" text="No real money or stock tips." />
+                <FeatureCard icon={<Activity className="h-5 w-5" />} title="Live movement" text="Prices update every few seconds." />
+                <FeatureCard icon={<Lightbulb className="h-5 w-5" />} title="Behavior first" text="Learn from panic and patience." />
+              </div>
             </div>
-            <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
-              <Card className="border-primary/15 bg-white/80">
-                <CardContent className="p-4">
-                  <ShieldCheck className="mb-3 h-5 w-5 text-primary" />
-                  <p className="text-sm font-semibold">No real trading</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Only learning behavior.</p>
-                </CardContent>
-              </Card>
-              <Card className="border-primary/15 bg-white/80">
-                <CardContent className="p-4">
-                  <TrendingDown className="mb-3 h-5 w-5 text-destructive" />
-                  <p className="text-sm font-semibold">Market dips</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Feel the panic safely.</p>
-                </CardContent>
-              </Card>
-              <Card className="border-primary/15 bg-white/80">
-                <CardContent className="p-4">
-                  <BookOpen className="mb-3 h-5 w-5 text-success" />
-                  <p className="text-sm font-semibold">Simple feedback</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Reflect after selling.</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
 
-          <Card className="border-primary/10 bg-white/90 shadow-xl shadow-primary/10 backdrop-blur">
-            <CardHeader>
-              <CardTitle className="text-2xl">{authMode === "login" ? "Log in" : "Create account"}</CardTitle>
-              <CardDescription>
-                {authMode === "login" ? "Continue your local simulator progress." : "Start with ₹100,000 in virtual cash."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); handleAuth(); }}>
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input id="username" autoComplete="username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} placeholder="student_user" />
+            <Card className="glass-card border-white/10 shadow-2xl shadow-primary/10">
+              <CardHeader className="flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="text-2xl">{authMode === "login" ? "Log in" : "Create account"}</CardTitle>
+                  <CardDescription>{authMode === "login" ? "Continue your local simulator progress." : "Start with ₹100,000 in virtual cash."}</CardDescription>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Enter password" />
-                </div>
-                <Button className="w-full" size="lg" type="submit">{authMode === "login" ? "Log in" : "Sign up"}</Button>
-              </form>
-              <Button className="w-full" variant="ghost" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>
-                {authMode === "login" ? "New here? Sign up" : "Already have an account? Log in"}
-              </Button>
-              <p className="rounded-xl bg-muted p-3 text-xs leading-5 text-muted-foreground">
-                This MVP stores account data locally on this device for simulation only. It is intentionally simple and not meant for sensitive information.
-              </p>
-            </CardContent>
-          </Card>
+                <Button size="icon" variant="outline" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); handleAuth(); }}>
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input id="username" autoComplete="username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} placeholder="student_user" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input id="password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Enter password" />
+                  </div>
+                  <Button className="w-full" size="lg" type="submit">{authMode === "login" ? "Log in" : "Sign up"}</Button>
+                </form>
+                <Button className="w-full" variant="ghost" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>
+                  {authMode === "login" ? "New here? Sign up" : "Already have an account? Log in"}
+                </Button>
+                <p className="rounded-2xl border bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+                  Account data is stored locally on this device for learning simulation only. Do not use a sensitive password.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background pb-16">
-      <header className="sticky top-0 z-20 border-b bg-card/95 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-primary"><Activity className="h-6 w-6" />Investment Simulator</h1>
-            <p className="text-sm text-muted-foreground">Logged in as {currentUser.username}. Market time: T{timeIndex + 1}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(["dashboard", "portfolio", "history"] as Screen[]).map((item) => (
-              <Button key={item} variant={screen === item ? "default" : "outline"} onClick={() => setScreen(item)} className="capitalize">
-                {item === "dashboard" ? "Dashboard" : item === "portfolio" ? "Portfolio" : "Trade History"}
-              </Button>
-            ))}
-            <Button variant="ghost" onClick={logout}><LogOut className="mr-2 h-4 w-4" />Logout</Button>
+    <div className={`${theme === "dark" ? "dark" : ""}`}>
+      <div className="min-h-[100dvh] bg-background text-foreground">
+        <div className="grid min-h-[100dvh] lg:grid-cols-[248px_minmax(0,1fr)]">
+          <Sidebar screen={screen} setScreen={setScreen} logout={logout} />
+
+          <div className="min-w-0">
+            <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur-xl">
+              <div className="flex flex-col gap-4 px-4 py-4 xl:flex-row xl:items-center xl:justify-between xl:px-6">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">Market time T{timeIndex + 1}</p>
+                  <h1 className="mt-1 text-2xl font-black tracking-tight">{screen === "dashboard" ? "Dashboard" : screen === "portfolio" ? "Portfolio" : screen === "history" ? "Trade History" : "Learning Insights"}</h1>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <TopMetric title="Cash" value={formatCurrency(currentUser.balance)} />
+                  <TopMetric title="Net Worth" value={formatCurrency(netWorth)} />
+                  <TopMetric title="P/L" value={`${totalProfitLoss >= 0 ? "+" : ""}${formatCurrency(totalProfitLoss)}`} valueClassName={totalProfitLoss >= 0 ? "text-success" : "text-destructive"} />
+                  <Button size="icon" variant="outline" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </header>
+
+            <main className="space-y-5 px-4 py-5 xl:px-6">
+              {screen === "dashboard" && (
+                <DashboardScreen
+                  stocks={stocks}
+                  selectedStock={selectedStock}
+                  selectedStockId={selectedStockId}
+                  setSelectedStockId={setSelectedStockId}
+                  portfolio={currentUser.portfolio}
+                  chartData={chartData}
+                  marketPhase={marketPhase}
+                  buyStock={buyStock}
+                  sellStock={sellStock}
+                  news={rotatedNews}
+                  insight={insight}
+                />
+              )}
+
+              {screen === "portfolio" && <PortfolioScreen rows={portfolioRows} portfolioValue={portfolioValue} totalProfitLoss={totalProfitLoss} />}
+              {screen === "history" && <HistoryScreen trades={currentUser.tradeHistory} behaviorLog={currentUser.behaviorLog} />}
+              {screen === "insights" && <InsightsScreen insight={insight} behaviorLog={currentUser.behaviorLog} trades={currentUser.tradeHistory} news={rotatedNews} />}
+            </main>
           </div>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
-        <section className="grid gap-4 md:grid-cols-4">
-          <MetricCard title="Current balance" value={formatCurrency(currentUser.balance)} icon={<User className="h-5 w-5" />} />
-          <MetricCard title="Portfolio value" value={formatCurrency(portfolioValue)} icon={<Briefcase className="h-5 w-5" />} />
-          <MetricCard title="Net worth" value={formatCurrency(netWorth)} icon={<BarChart3 className="h-5 w-5" />} />
-          <MetricCard title="Total P/L" value={`${totalProfitLoss >= 0 ? "+" : ""}${formatCurrency(totalProfitLoss)}`} icon={totalProfitLoss >= 0 ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />} valueClassName={totalProfitLoss >= 0 ? "text-success" : "text-destructive"} />
-        </section>
-
-        {marketPhase !== "normal" && (
-          <Card className={marketPhase === "dip" ? "border-destructive/30 bg-destructive/10" : "border-success/30 bg-success/10"}>
-            <CardContent className="flex items-start gap-3 p-4">
-              {marketPhase === "dip" ? <TrendingDown className="mt-0.5 h-5 w-5 text-destructive" /> : <TrendingUp className="mt-0.5 h-5 w-5 text-success" />}
-              <div>
-                <p className="font-semibold">{marketPhase === "dip" ? "Market dip in progress" : "Recovery pattern in progress"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {marketPhase === "dip" ? "Prices dropped sharply. This is where panic selling often happens." : "Prices are recovering after earlier drops. Notice how fear can change once prices move up again."}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {screen === "dashboard" && (
-          <DashboardScreen
-            stocks={stocks}
-            selectedStock={selectedStock}
-            selectedStockId={selectedStockId}
-            setSelectedStockId={setSelectedStockId}
-            portfolio={currentUser.portfolio}
-            chartData={chartData}
-            buyStock={buyStock}
-            sellStock={sellStock}
-          />
-        )}
-
-        {screen === "portfolio" && <PortfolioScreen rows={portfolioRows} />}
-
-        {screen === "history" && <HistoryScreen trades={currentUser.tradeHistory} behaviorLog={currentUser.behaviorLog} />}
-      </main>
+      </div>
     </div>
   );
 }
 
-function MetricCard({ title, value, icon, valueClassName = "" }: { title: string; value: string; icon: React.ReactNode; valueClassName?: string }) {
+function FeatureCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <Card className="bg-card/90">
-      <CardContent className="flex items-center justify-between p-5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
-          <p className={`mt-2 text-2xl font-extrabold ${valueClassName}`}>{value}</p>
-        </div>
-        <div className="rounded-2xl bg-primary/10 p-3 text-primary">{icon}</div>
+    <Card className="glass-card border-white/10">
+      <CardContent className="p-4">
+        <div className="mb-3 text-primary">{icon}</div>
+        <p className="text-sm font-bold">{title}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{text}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function Sidebar({ screen, setScreen, logout }: { screen: Screen; setScreen: (screen: Screen) => void; logout: () => void }) {
+  const items: Array<{ id: Screen; label: string; icon: ReactNode }> = [
+    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { id: "portfolio", label: "Portfolio", icon: <Briefcase className="h-4 w-4" /> },
+    { id: "history", label: "Trade History", icon: <History className="h-4 w-4" /> },
+    { id: "insights", label: "Learning Insights", icon: <Lightbulb className="h-4 w-4" /> },
+  ];
+
+  return (
+    <aside className="border-b bg-card/70 p-4 backdrop-blur-xl lg:sticky lg:top-0 lg:h-[100dvh] lg:border-b-0 lg:border-r">
+      <div className="flex h-full flex-col gap-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <Activity className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-lg font-black tracking-tight">InvestSim</p>
+            <p className="text-xs text-muted-foreground">Learning market desk</p>
+          </div>
+        </div>
+
+        <nav className="grid gap-1">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setScreen(item.id)}
+              className={`flex items-center justify-between rounded-2xl px-3 py-3 text-left text-sm font-semibold transition ${screen === item.id ? "bg-primary text-primary-foreground shadow-lg shadow-primary/15" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+            >
+              <span className="flex items-center gap-3">{item.icon}{item.label}</span>
+              {screen === item.id && <ChevronRight className="h-4 w-4" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="mt-auto space-y-3">
+          <div className="rounded-3xl border bg-background/60 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Mode</p>
+            <p className="mt-2 text-sm font-semibold">Simulation only</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">No real trades, real APIs, or investment advice.</p>
+          </div>
+          <Button variant="outline" className="w-full justify-start" onClick={logout}><LogOut className="mr-2 h-4 w-4" />Logout</Button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function TopMetric({ title, value, valueClassName = "" }: { title: string; value: string; valueClassName?: string }) {
+  return (
+    <div className="rounded-2xl border bg-card px-4 py-2 shadow-sm">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
+      <p className={`text-sm font-black ${valueClassName}`}>{value}</p>
+    </div>
   );
 }
 
@@ -561,8 +675,11 @@ function DashboardScreen({
   setSelectedStockId,
   portfolio,
   chartData,
+  marketPhase,
   buyStock,
   sellStock,
+  news,
+  insight,
 }: {
   stocks: StockView[];
   selectedStock?: StockView;
@@ -570,91 +687,175 @@ function DashboardScreen({
   setSelectedStockId: (stockId: string) => void;
   portfolio: Record<string, PortfolioItem>;
   chartData: { time: string; price: number }[];
+  marketPhase: "dip" | "recovery" | "normal";
   buyStock: (stock: StockView) => void;
   sellStock: (stock: StockView) => void;
+  news: string[];
+  insight?: { performance: number; behavior: string; suggestion: string };
 }) {
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-bold">Dashboard</h2>
-          <p className="text-sm text-muted-foreground">All stocks move together through the same simulated time index.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {stocks.map((stock) => {
-            const holding = portfolio[stock.id];
-            const hasHolding = Boolean(holding?.quantity);
-            const isPositive = stock.percentChange >= 0;
-            return (
-              <Card key={stock.id} className={`cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md ${selectedStockId === stock.id ? "border-primary shadow-md shadow-primary/10" : ""}`} onClick={() => setSelectedStockId(stock.id)}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-lg">{stock.name}</CardTitle>
-                      <CardDescription>{stock.id}</CardDescription>
-                    </div>
-                    <Badge variant="outline" className={isPositive ? "text-success" : "text-destructive"}>{isPositive ? "+" : ""}{stock.percentChange.toFixed(2)}%</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                      <p className="text-3xl font-extrabold">{formatCurrency(stock.currentPrice)}</p>
-                      <p className="text-xs text-muted-foreground">Previous {formatCurrency(stock.previousPrice)}</p>
-                    </div>
-                    {hasHolding && <p className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">Owned: {holding?.quantity}</p>}
-                  </div>
-                  <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-                    <Button className="flex-1" onClick={() => buyStock(stock)}>Buy</Button>
-                    <Button className="flex-1" variant="outline" disabled={!hasHolding} onClick={() => sellStock(stock)}>Sell</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
+  if (!selectedStock) return null;
+  const isPositive = selectedStock.percentChange >= 0;
+  const holding = portfolio[selectedStock.id];
+  const canSell = Boolean(holding?.quantity);
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-bold">Price chart</h2>
-          <p className="text-sm text-muted-foreground">Click a stock card to inspect its live timeline.</p>
-        </div>
-        <Card className="min-h-[420px]">
-          <CardHeader>
-            <CardTitle>{selectedStock?.name || "Select a stock"}</CardTitle>
-            <CardDescription>Price vs simulated time</CardDescription>
+  return (
+    <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="min-w-0 space-y-5">
+        <Card className="market-hero overflow-hidden border-white/10">
+          <CardContent className="space-y-5 p-5 md:p-6">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant="outline" className="bg-background/60">{selectedStock.sector}</Badge>
+                  <Badge className={marketPhase === "dip" ? "bg-destructive/15 text-destructive hover:bg-destructive/15" : marketPhase === "recovery" ? "bg-success/15 text-success hover:bg-success/15" : "bg-primary/15 text-primary hover:bg-primary/15"}>
+                    {marketPhase === "dip" ? "Market dip" : marketPhase === "recovery" ? "Recovery" : "Live market"}
+                  </Badge>
+                </div>
+                <h2 className="mt-4 text-3xl font-black tracking-tight md:text-5xl">{selectedStock.name}</h2>
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <p className="text-4xl font-black tracking-tight">{formatCurrency(selectedStock.currentPrice)}</p>
+                  <p className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm font-bold ${isPositive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+                    {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                    {isPositive ? "+" : ""}{selectedStock.percentChange.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button size="lg" className="min-w-28" onClick={() => buyStock(selectedStock)}>Buy</Button>
+                <Button size="lg" variant="outline" className="min-w-28 bg-background/70" disabled={!canSell} onClick={() => sellStock(selectedStock)}>Sell</Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {stocks.map((stock) => (
+                <button
+                  key={stock.id}
+                  onClick={() => setSelectedStockId(stock.id)}
+                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedStockId === stock.id ? "border-primary bg-primary/10 shadow-lg shadow-primary/10" : "bg-background/65 hover:bg-background"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black">{stock.name}</p>
+                      <p className="text-xs text-muted-foreground">{stock.id}</p>
+                    </div>
+                    <span className={stock.percentChange >= 0 ? "text-xs font-bold text-success" : "text-xs font-bold text-destructive"}>{stock.percentChange >= 0 ? "+" : ""}{stock.percentChange.toFixed(1)}%</span>
+                  </div>
+                  <p className="mt-3 text-lg font-black">{formatCurrency(stock.currentPrice)}</p>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="chart-card overflow-hidden">
+          <CardHeader className="flex-col gap-3 border-b md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Price vs Time</CardTitle>
+              <CardDescription>Hover the graph to inspect simulated values. It updates live with the market clock.</CardDescription>
+            </div>
+            <Badge variant="outline" className="w-fit">{chartData.length} time points</Badge>
           </CardHeader>
-          <CardContent className="h-80">
+          <CardContent className="h-[430px] p-4 md:p-6">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 8, left: 0, bottom: 8 }}>
+              <AreaChart data={chartData} margin={{ top: 20, right: 18, left: 0, bottom: 12 }}>
                 <defs>
-                  <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                  <linearGradient id="premiumPriceFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `₹${formatNumber(Number(value))}`} width={72} />
-                <ChartTooltip formatter={(value) => [formatCurrency(Number(value)), "Price"]} />
-                <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" strokeWidth={3} fill="url(#priceFill)" />
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="time" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(value) => `₹${formatNumber(Number(value))}`} width={74} axisLine={false} tickLine={false} />
+                <ChartTooltip
+                  formatter={(value) => [formatCurrency(Number(value)), "Price"]}
+                  contentStyle={{ borderRadius: 16, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
+                />
+                <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" strokeWidth={3} fill="url(#premiumPriceFill)" activeDot={{ r: 6 }} animationDuration={700} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatCard title="Day change" value={`${isPositive ? "+" : ""}${selectedStock.percentChange.toFixed(2)}%`} tone={isPositive ? "positive" : "negative"} icon={<Activity className="h-5 w-5" />} />
+          <StatCard title="Total trend" value={`${selectedStock.totalTrend >= 0 ? "+" : ""}${selectedStock.totalTrend.toFixed(2)}%`} tone={selectedStock.totalTrend >= 0 ? "positive" : "negative"} icon={<TrendingUp className="h-5 w-5" />} />
+          <StatCard title="Volatility" value={`${selectedStock.volatility.toFixed(2)}%`} tone="neutral" icon={<Gauge className="h-5 w-5" />} />
+        </div>
       </section>
+
+      <RightPanel news={news} insight={insight} />
     </div>
   );
 }
 
-function PortfolioScreen({ rows }: { rows: Array<PortfolioItem & { stockName: string; currentPrice: number; currentValue: number; investedValue: number; profitLoss: number; profitLossPercent: number }> }) {
+function StatCard({ title, value, tone, icon }: { title: string; value: string; tone: "positive" | "negative" | "neutral"; icon: ReactNode }) {
+  const toneClass = tone === "positive" ? "text-success bg-success/10" : tone === "negative" ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10";
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between p-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
+          <p className={`mt-2 text-2xl font-black ${tone === "positive" ? "text-success" : tone === "negative" ? "text-destructive" : ""}`}>{value}</p>
+        </div>
+        <div className={`rounded-2xl p-3 ${toneClass}`}>{icon}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RightPanel({ news, insight }: { news: string[]; insight?: { performance: number; behavior: string; suggestion: string } }) {
+  return (
+    <aside className="space-y-5">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Newspaper className="h-5 w-5 text-primary" />Market News</CardTitle>
+          <CardDescription>Simulated headlines that create realistic market context.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {news.slice(0, 5).map((headline, index) => (
+            <div key={`${headline}-${index}`} className="rounded-2xl border bg-background/55 p-4 transition hover:bg-muted/50">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Badge variant="outline">Market</Badge>
+                <span className="text-xs text-muted-foreground">T-{index + 1}</span>
+              </div>
+              <p className="text-sm font-semibold leading-6">{headline}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="insight-card overflow-hidden">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5" />AI Learning Insights</CardTitle>
+          <CardDescription>Rule-based today, structured for future AI feedback.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl bg-background/65 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Last 1 Hour Performance</p>
+            <p className={`mt-2 text-3xl font-black ${(insight?.performance || 0) >= 0 ? "text-success" : "text-destructive"}`}>{(insight?.performance || 0) >= 0 ? "+" : ""}{formatCurrency(insight?.performance || 0)}</p>
+          </div>
+          <div className="rounded-2xl border bg-background/65 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior Insight</p>
+            <p className="mt-2 text-sm font-semibold leading-6">{insight?.behavior}</p>
+          </div>
+          <div className="rounded-2xl border bg-background/65 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Suggestion</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{insight?.suggestion}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </aside>
+  );
+}
+
+function PortfolioScreen({ rows, portfolioValue, totalProfitLoss }: { rows: PortfolioRow[]; portfolioValue: number; totalProfitLoss: number }) {
   if (rows.length === 0) {
     return (
       <Card>
-        <CardContent className="py-14 text-center">
+        <CardContent className="py-16 text-center">
           <Briefcase className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-          <h2 className="text-xl font-bold">Your portfolio is empty</h2>
+          <h2 className="text-xl font-black">Your portfolio is empty</h2>
           <p className="mt-2 text-sm text-muted-foreground">Buy stocks from the dashboard to begin tracking holdings and profit/loss.</p>
         </CardContent>
       </Card>
@@ -662,104 +863,140 @@ function PortfolioScreen({ rows }: { rows: Array<PortfolioItem & { stockName: st
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Portfolio</CardTitle>
-        <CardDescription>Holdings, average buy price, current price, and total profit/loss.</CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="border-b text-xs uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="py-3 pr-4">Stock</th>
-              <th className="py-3 pr-4">Quantity</th>
-              <th className="py-3 pr-4">Avg buy</th>
-              <th className="py-3 pr-4">Current price</th>
-              <th className="py-3 pr-4">Current value</th>
-              <th className="py-3 pr-4">Profit/Loss</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {rows.map((row) => (
-              <tr key={row.stockId}>
-                <td className="py-4 pr-4 font-semibold">{row.stockName}</td>
-                <td className="py-4 pr-4">{row.quantity}</td>
-                <td className="py-4 pr-4">{formatCurrency(row.averageBuyPrice)}</td>
-                <td className="py-4 pr-4">{formatCurrency(row.currentPrice)}</td>
-                <td className="py-4 pr-4">{formatCurrency(row.currentValue)}</td>
-                <td className={`py-4 pr-4 font-bold ${row.profitLoss >= 0 ? "text-success" : "text-destructive"}`}>
-                  {row.profitLoss >= 0 ? "+" : ""}{formatCurrency(row.profitLoss)} ({row.profitLossPercent.toFixed(2)}%)
-                </td>
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard title="Total value" value={formatCurrency(portfolioValue)} tone="neutral" icon={<Wallet className="h-5 w-5" />} />
+        <StatCard title="Open P/L" value={`${totalProfitLoss >= 0 ? "+" : ""}${formatCurrency(totalProfitLoss)}`} tone={totalProfitLoss >= 0 ? "positive" : "negative"} icon={<BarChart3 className="h-5 w-5" />} />
+        <StatCard title="Holdings" value={String(rows.length)} tone="neutral" icon={<Briefcase className="h-5 w-5" />} />
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Portfolio</CardTitle>
+          <CardDescription>Structured holdings with quantity, average price, current price, and P/L.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full min-w-[780px] text-left text-sm">
+            <thead className="border-b text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="py-3 pr-4">Stock</th>
+                <th className="py-3 pr-4">Quantity</th>
+                <th className="py-3 pr-4">Avg price</th>
+                <th className="py-3 pr-4">Current price</th>
+                <th className="py-3 pr-4">Value</th>
+                <th className="py-3 pr-4">P/L</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
+            </thead>
+            <tbody className="divide-y">
+              {rows.map((row) => (
+                <tr key={row.stockId} className="transition hover:bg-muted/35">
+                  <td className="py-4 pr-4 font-black">{row.stockName}</td>
+                  <td className="py-4 pr-4">{row.quantity}</td>
+                  <td className="py-4 pr-4">{formatCurrency(row.averageBuyPrice)}</td>
+                  <td className="py-4 pr-4">{formatCurrency(row.currentPrice)}</td>
+                  <td className="py-4 pr-4">{formatCurrency(row.currentValue)}</td>
+                  <td className={`py-4 pr-4 font-black ${row.profitLoss >= 0 ? "text-success" : "text-destructive"}`}>{row.profitLoss >= 0 ? "+" : ""}{formatCurrency(row.profitLoss)} ({row.profitLossPercent.toFixed(2)}%)</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 function HistoryScreen({ trades, behaviorLog }: { trades: Trade[]; behaviorLog: BehaviorLog[] }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card>
         <CardHeader>
           <CardTitle>Trade History</CardTitle>
-          <CardDescription>Every buy and sell is tracked with price and simulator time.</CardDescription>
+          <CardDescription>Every buy and sell with price, time, and result.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {trades.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">No trades yet.</div>
-          ) : (
-            trades.map((trade) => (
-              <div key={trade.id} className="flex flex-col justify-between gap-3 rounded-xl border bg-background p-4 sm:flex-row sm:items-center">
-                <div className="flex items-start gap-3">
-                  <div className={`rounded-full p-2 ${trade.type === "BUY" ? "bg-success/10 text-success" : "bg-primary/10 text-primary"}`}>
-                    {trade.type === "BUY" ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                  </div>
-                  <div>
-                    <p className="font-bold">{trade.type} {trade.stockName}</p>
-                    <p className="text-xs text-muted-foreground">Time T{trade.timeIndex + 1} at {new Date(trade.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                  </div>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="font-bold">{formatCurrency(trade.price)}</p>
-                  {trade.label && <Badge variant={trade.label === "Panic Sell" ? "destructive" : "secondary"}>{trade.label}</Badge>}
-                  {typeof trade.profitOrLoss === "number" && (
-                    <p className={trade.profitOrLoss >= 0 ? "text-sm font-semibold text-success" : "text-sm font-semibold text-destructive"}>{trade.profitOrLoss >= 0 ? "+" : ""}{formatCurrency(trade.profitOrLoss)}</p>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+            <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">No trades yet.</div>
+          ) : trades.map((trade) => (
+            <TradeRow key={trade.id} trade={trade} />
+          ))}
         </CardContent>
       </Card>
+      <BehaviorLogCard behaviorLog={behaviorLog} />
+    </div>
+  );
+}
 
-      <Card>
+function TradeRow({ trade }: { trade: Trade }) {
+  return (
+    <div className="flex flex-col justify-between gap-3 rounded-2xl border bg-background/60 p-4 transition hover:bg-muted/35 sm:flex-row sm:items-center">
+      <div className="flex items-start gap-3">
+        <div className={`rounded-2xl p-2 ${trade.type === "BUY" ? "bg-success/10 text-success" : "bg-primary/10 text-primary"}`}>
+          {trade.type === "BUY" ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+        </div>
+        <div>
+          <p className="font-black">{trade.type} {trade.stockName}</p>
+          <p className="text-xs text-muted-foreground">Time T{trade.timeIndex + 1} at {new Date(trade.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+        </div>
+      </div>
+      <div className="text-left sm:text-right">
+        <p className="font-black">{formatCurrency(trade.price)}</p>
+        {trade.label && <Badge variant={trade.label === "Panic Sell" ? "destructive" : "secondary"}>{trade.label}</Badge>}
+        {typeof trade.profitOrLoss === "number" && (
+          <p className={trade.profitOrLoss >= 0 ? "text-sm font-bold text-success" : "text-sm font-bold text-destructive"}>{trade.profitOrLoss >= 0 ? "+" : ""}{formatCurrency(trade.profitOrLoss)}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BehaviorLogCard({ behaviorLog }: { behaviorLog: BehaviorLog[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-primary" />Behavior Log</CardTitle>
+        <CardDescription>Feedback created after sell decisions.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {behaviorLog.length === 0 ? (
+          <div className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Sell a stock to generate behavior feedback.</div>
+        ) : behaviorLog.map((entry) => {
+          const stock = findStock(entry.stockId);
+          return (
+            <div key={entry.id} className="rounded-2xl border bg-background/60 p-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="font-black">{stock?.name || entry.stockId}</p>
+                <Badge variant={entry.behavior === "Panic Sell" ? "destructive" : "secondary"}>{entry.behavior}</Badge>
+              </div>
+              <p className="text-sm leading-6 text-muted-foreground">{entry.message}</p>
+              <p className={`mt-2 text-sm font-black ${entry.profitOrLoss >= 0 ? "text-success" : "text-destructive"}`}>{entry.profitOrLoss >= 0 ? "+" : ""}{formatCurrency(entry.profitOrLoss)}</p>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+function InsightsScreen({ insight, behaviorLog, trades, news }: { insight?: { performance: number; behavior: string; suggestion: string }; behaviorLog: BehaviorLog[]; trades: Trade[]; news: string[] }) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="insight-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Behavior Log</CardTitle>
-          <CardDescription>Learning notes created after sell decisions.</CardDescription>
+          <CardTitle>Learning Insights</CardTitle>
+          <CardDescription>Behavior-focused guidance from your recent simulated decisions.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {behaviorLog.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">Sell a stock to receive behavior feedback.</div>
-          ) : (
-            behaviorLog.map((entry) => {
-              const stock = findStock(entry.stockId);
-              return (
-                <div key={entry.id} className="rounded-xl border bg-background p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="font-bold">{stock?.name || entry.stockId}</p>
-                    <Badge variant={entry.behavior === "Panic Sell" ? "destructive" : "secondary"}>{entry.behavior}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{entry.message}</p>
-                  <p className={`mt-2 text-sm font-bold ${entry.profitOrLoss >= 0 ? "text-success" : "text-destructive"}`}>{entry.profitOrLoss >= 0 ? "+" : ""}{formatCurrency(entry.profitOrLoss)}</p>
-                </div>
-              );
-            })
-          )}
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <StatCard title="Last 1 hour" value={`${(insight?.performance || 0) >= 0 ? "+" : ""}${formatCurrency(insight?.performance || 0)}`} tone={(insight?.performance || 0) >= 0 ? "positive" : "negative"} icon={<BarChart3 className="h-5 w-5" />} />
+          <StatCard title="Trades" value={String(trades.length)} tone="neutral" icon={<History className="h-5 w-5" />} />
+          <StatCard title="Panic sells" value={String(behaviorLog.filter((item) => item.behavior === "Panic Sell").length)} tone="negative" icon={<TrendingDown className="h-5 w-5" />} />
+          <div className="rounded-3xl border bg-background/60 p-5 md:col-span-3">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Behavior Insight</p>
+            <p className="mt-2 text-lg font-black">{insight?.behavior}</p>
+            <p className="mt-3 leading-7 text-muted-foreground">{insight?.suggestion}</p>
+          </div>
         </CardContent>
       </Card>
+      <RightPanel news={news} insight={insight} />
     </div>
   );
 }

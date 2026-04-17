@@ -1,0 +1,212 @@
+You are an expert full-stack developer and product designer.
+
+Upgrade the existing Investment Simulator into a professional, modern, highly interactive finance dashboard UI while maintaining simplicity and performance.
+
+This should feel like a real investing platform, but designed for beginners.
+
+--------------------------------------------------
+
+🔹 CORE DESIGN GOAL
+
+- Clean, premium, modern UI (inspired by trading apps)
+- Interactive and engaging
+- NOT childish
+- NOT cluttered
+
+Think:
+- dark/light professional dashboard
+- smooth transitions
+- data-focused layout
+
+--------------------------------------------------
+
+🔹 MAIN LAYOUT (VERY IMPORTANT)
+
+Build a 3-section dashboard:
+
+1. LEFT SIDEBAR
+2. CENTER MAIN AREA
+3. RIGHT PANEL
+
+--------------------------------------------------
+
+🔹 LEFT SIDEBAR
+
+Include:
+
+- App Logo: "InvestSim"
+- Navigation:
+  - Dashboard
+  - Portfolio
+  - Trade History
+  - Learning Insights
+
+Keep it minimal and clean.
+
+--------------------------------------------------
+
+🔹 CENTER AREA (MOST IMPORTANT)
+
+This is the core experience.
+
+### TOP SECTION:
+- Selected stock name
+- Current price
+- % change (green/red)
+- Buy / Sell buttons
+
+---
+
+### MAIN GRAPH (CENTER FOCUS):
+
+- Large interactive graph using Chart.js
+- Shows price vs time
+- Smooth updates as time progresses
+- Ability to:
+  - Switch between stocks
+  - Hover to see values
+
+Graph must feel premium and smooth.
+
+---
+
+### BELOW GRAPH:
+
+- Quick stats:
+  - Day change
+  - Total trend
+  - Volatility (basic simulated)
+
+--------------------------------------------------
+
+🔹 STOCK SELECTOR (IMPORTANT)
+
+- Show list of stocks horizontally or left panel
+- Clicking a stock updates:
+  - graph
+  - price
+  - stats
+
+Must feel instant.
+
+--------------------------------------------------
+
+🔹 RIGHT PANEL (HIGH IMPACT)
+
+Split into 2 sections:
+
+### 1. MARKET NEWS (SIMULATED)
+
+- Show 4–5 news cards:
+  Example:
+  - "Reliance shares drop after market correction"
+  - "IT stocks show recovery trend"
+
+These can be static or randomly rotated.
+
+Purpose:
+- Create realism
+- Influence user emotion
+
+---
+
+### 2. AI LEARNING INSIGHTS
+
+This is your differentiator.
+
+Show:
+
+- "Last 1 Hour Performance"
+  - Profit/Loss summary
+
+- "Behavior Insight"
+  Example:
+  - "You sold during a dip in the last trade"
+
+- "Suggestion"
+  Example:
+  - "Markets often recover after short-term dips"
+
+Make this visually distinct (card style)
+
+--------------------------------------------------
+
+🔹 PORTFOLIO VIEW (SEPARATE PAGE)
+
+Show:
+
+- Total value
+- Profit/loss (highlighted)
+- List of holdings:
+  - Stock name
+  - Quantity
+  - Avg price
+  - Current price
+  - P/L
+
+Make it clean and structured.
+
+--------------------------------------------------
+
+🔹 TRADE HISTORY
+
+- List all trades
+- Include:
+  - Buy/Sell
+  - Time
+  - Price
+  - Result (profit/loss)
+
+--------------------------------------------------
+
+🔹 INTERACTIVITY (IMPORTANT)
+
+- Smooth UI updates (no reloads)
+- Buttons respond instantly
+- Graph updates live with time index
+
+--------------------------------------------------
+
+🔹 DESIGN SYSTEM
+
+- Use modern fonts
+- Use spacing properly
+- Colors:
+  - Green = profit
+  - Red = loss
+  - Neutral dark/light background
+
+Optional:
+- Add subtle animations
+
+--------------------------------------------------
+
+🔹 DATA FLOW
+
+- Time-based simulation continues running
+- Prices update every few seconds
+- Graph updates accordingly
+
+--------------------------------------------------
+
+🔹 PERFORMANCE RULE
+
+- Keep app fast
+- No heavy frameworks
+- No unnecessary re-renders
+
+--------------------------------------------------
+
+🔹 FINAL EXPERIENCE
+
+User should feel:
+
+"I’m actually interacting with a real market dashboard"
+
+BUT also see:
+
+"This app is teaching me something about my behavior"
+
+--------------------------------------------------
+
+Build this as a clean, modern, responsive dashboard.

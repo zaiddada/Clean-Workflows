@@ -4,7 +4,7 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
-The main user-facing app is **Investment Simulator**, a frontend-only learning simulation for beginner investors. It includes simple local signup/login, virtual rupee trading, time-based market timelines, live stock charts, portfolio tracking, trade history, behavior logging, and simple feedback about panic selling and patience.
+The main user-facing app is **Investment Simulator**, a frontend-only learning simulation for beginner investors. It includes simple local signup/login, virtual rupee trading, time-based market timelines, live stock charts, portfolio tracking, trade history, behavior logging, simulated market news, learning insights, and simple feedback about panic selling and patience.
 
 ## Stack
 
@@ -21,7 +21,7 @@ The main user-facing app is **Investment Simulator**, a frontend-only learning s
 
 ## Artifacts
 
-- `artifacts/investment-simulator` — React/Vite web app served at `/`. Frontend-only simulator with localStorage-based username/password accounts, predefined mock price timelines, chart visualization, portfolio/trade history screens, and panic-sell behavior detection. No real APIs, no real trading, and no backend persistence.
+- `artifacts/investment-simulator` — React/Vite web app served at `/`. Frontend-only simulator with localStorage-based username/password accounts, predefined mock price timelines, a modern three-section dashboard (left sidebar, center market chart, right news/insights panel), portfolio/trade history screens, learning insights, and panic-sell behavior detection. No real APIs, no real trading, and no backend persistence.
 - `artifacts/api-server` — shared Express API server at `/api`.
 - `artifacts/mockup-sandbox` — canvas/design preview sandbox at `/__mockup`.
 
