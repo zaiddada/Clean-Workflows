@@ -1,0 +1,164 @@
+You are an expert full-stack developer and simulation designer.
+
+Upgrade the Investment Simulator to include a realistic market engine driven by structured news events and controlled price behavior.
+
+Follow instructions carefully and do not overcomplicate.
+
+--------------------------------------------------
+
+🔹 GOAL
+
+Make stock price movement feel realistic, not random.
+
+Prices should:
+- Move slowly most of the time
+- Occasionally trend upward or downward
+- React to news events
+
+--------------------------------------------------
+
+🔹 PHASE 1: STOCK DATA STRUCTURE
+
+For each stock, create:
+
+{
+  name: "RELIANCE",
+  price: 2500,
+  trend: "neutral", // can be "up", "down", "neutral"
+  volatility: 0.01, // base fluctuation
+  history: []
+}
+
+--------------------------------------------------
+
+🔹 PHASE 2: PRICE MOVEMENT ENGINE
+
+Every 3–5 seconds, update prices using:
+
+1. BASE MOVEMENT:
+- small fluctuation (±0.5% to ±1%)
+
+2. TREND EFFECT:
+- if trend = "up" → slight upward bias
+- if trend = "down" → slight downward bias
+
+3. RANDOM NOISE:
+- small unpredictable variation
+
+--------------------------------------------------
+
+🔹 PHASE 3: EVENT SYSTEM (IMPORTANT)
+
+Every 20–40 seconds:
+
+- Trigger a market event
+
+Event types:
+- Positive event → +3% to +7%
+- Negative event → -3% to -10%
+
+Apply to:
+- specific stock OR sector OR all stocks
+
+--------------------------------------------------
+
+🔹 PHASE 4: NEWS DATABASE
+
+Create a JSON-based news dataset.
+
+Structure:
+
+{
+  stock: "RELIANCE",
+  type: "negative",
+  impact: -0.06,
+  headline: "Reliance faces regulatory concerns affecting growth outlook"
+}
+
+Requirements:
+- 30–50 news items per stock
+- Mix:
+  - positive
+  - negative
+  - neutral
+
+Do NOT use real APIs. Generate realistic headlines.
+
+--------------------------------------------------
+
+🔹 PHASE 5: NEWS → PRICE CONNECTION
+
+When news is triggered:
+
+1. Display news in UI
+2. Apply its impact to stock price:
+
+price = price * (1 + impact)
+
+3. Adjust trend accordingly:
+- positive → trend = "up"
+- negative → trend = "down"
+
+--------------------------------------------------
+
+🔹 PHASE 6: MARKET BEHAVIOR LOGIC
+
+Ensure:
+
+- Prices do NOT jump randomly every second
+- Most movement is smooth
+- Big changes are rare and event-driven
+
+--------------------------------------------------
+
+🔹 PHASE 7: GRAPH IMPROVEMENT
+
+- Graph updates every time step
+- Maintain price history array
+- Show smooth line chart (Chart.js)
+
+Add:
+- real-time feel (animated updates)
+- hover interaction
+
+--------------------------------------------------
+
+🔹 PHASE 8: USER EXPERIENCE IMPROVEMENT
+
+Add:
+
+1. News highlight animation
+2. Subtle price color flashes (green/red)
+3. Market alerts:
+   - "Market dip detected"
+   - "Tech stocks trending up"
+
+--------------------------------------------------
+
+🔹 PHASE 9: DATA CONSISTENCY
+
+Ensure:
+- All stocks update together
+- Time index is consistent
+- No UI lag
+
+--------------------------------------------------
+
+🔹 PHASE 10: CONSTRAINTS
+
+- Do NOT use real stock APIs
+- Do NOT over-randomize prices
+- Keep logic understandable and clean
+
+--------------------------------------------------
+
+🔹 FINAL EXPECTATION
+
+The app should feel like:
+- a live market
+- influenced by news
+- predictable in patterns but not obvious
+
+--------------------------------------------------
+
+Build this cleanly without breaking existing UI.
